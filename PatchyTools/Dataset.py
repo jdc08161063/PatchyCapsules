@@ -25,7 +25,7 @@ labels_urls[names[5]]="https://raw.githubusercontent.com/koyamabraintree/dataset
 ##### insert here your DropboxData ########
 DropboxDataRoot = '~/Braintree Ltd Dropbox/Research Department/Research Projects/GAMMA/Data/Samples/'
 
-class dropbox:
+class Dropbox:
     '''#Node id is made to start from 0 due to nauty package requirement, even if it starts from 1 in the original file
     
     '''
