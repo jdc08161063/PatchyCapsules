@@ -64,21 +64,23 @@ class CapsuleNetwork(object):
 
 
 
-    def train_model(self,X_train,y_train, batch_size, num_epochs = 10):
+    def train_model(self,X_train,y_train, X_test, y_test, num_epochs = 10):
 
         num_epochs = 5
         train_size = X_train.shape[0]
-        num_batches = n_batches = int(X_train.shape[0]/batch_size)
+        num_batches = n_batches = int(X_train.shape[0]/self.batch_size)
+        num_batches_test = int(X_test.shape[0] / self.batch_size)
+
 
         # Create Placeholders:
         self.X_place, self.y_place = self.set_placeholders(batch_size)
 
         # Define forward pass:
-        self.build_capsule_arch(batch_size,self.X_place)
+        self.build_capsule_arch(self.batch_size,self.X_place)
 
         print('Capsule architecture built')
         loss = self.calculate_total_loss(self.X_place, self.y_place,\
-                                         y_train, batch_size)
+                                         y_train, self.batch_size)
         print('Loss computed')
 
         with tf.name_scope('optimizer'):
@@ -95,25 +97,42 @@ class CapsuleNetwork(object):
 
             for epoch in range(num_epochs):
 
+                print('Epoch {} :'.format(epoch))
                 # Shuffling and dividing into batches:
                 shuffled_idx = np.random.permutation(train_size)
                 X_batches = np.array_split(X_train[shuffled_idx], num_batches)
                 y_batches = np.array_split(y_train[shuffled_idx], num_batches)
 
+                y_pred_train = np.array([])
                 # SGD:
                 for X_batch, y_batch in zip(X_batches, y_batches):
                     sess.run(self.training_op, feed_dict={self.X_place: X_batch,
                                                           self.y_place: y_batch})
 
+                    y_pred_batch = sess.run(self.get_predictions(self.v),
+                                            feed_dict={self.X_place: X_batch, self.y_place: y_batch})
 
-                # Train error:
+                    #print('y_pred_batch shape : ', y_pred_batch.shape)
+                    #print('y_pred_train shape : ', y_pred_train.shape)
+                    y_pred_train= np.hstack([y_pred_train, y_pred_batch])
+
+                train_accuracy = sum(y_pred_train == y_train[shuffled_idx]) / len(y_pred_train)
+                print('accuracy train: {}'.format(train_accuracy))
 
 
+                # Testing :
+                X_batches_test = np.array_split(X_test, num_batches_test)
+                y_batches_test = np.array_split(y_test, num_batches_test)
+                y_pred_test = np.array([])
 
+                for X_batch, y_batch in zip(X_batches_test, y_batches_test):
+                    y_pred_batch = sess.run(self.get_predictions(self.v),
+                                            feed_dict={self.X_place: X_batch, self.y_place: y_batch})
 
+                    y_pred_test = np.hstack([y_pred_test, y_pred_batch])
 
-                print('Epoch {} completed'.format(epoch))
-
+                test_accuracy = sum(y_pred_test == y_test) / len(y_pred_test)
+                print('accuracy test: {}'.format(test_accuracy))
 
 
 
@@ -124,11 +143,21 @@ class CapsuleNetwork(object):
         self.v, self.b_IJ = self.build_digit_caps_layer(batch_size, u_i)
 
 
-    def evaluate(self,X, y, is_test = False):
+    def evaluate(self, X, y, sess):
         with tf.name_scope('evaluate'):
-            with tf.Session() as sess:
 
-                v_pred = sess.run(self.v,feed_dict={self.X_place:X})
+            v_pred = sess.run(self.v,feed_dict={self.X_place:X})
+
+
+    def get_predictions(self, v):
+        reshaped_v = tf.squeeze(self.v)
+        v_norm = tf.sqrt(tf.reduce_sum(tf.square(reshaped_v), axis=2))
+        #print('y norm shape : ', v_norm.shape)
+        v_softmax = tf.nn.softmax(v_norm, axis=1)
+        #print('y soft shape : ', v_softmax.shape)
+        y_pred = tf.argmax(v_norm, axis=1)
+        #print('y_pred shape : ', y_pred.shape)
+        return y_pred
 
 
 
@@ -283,7 +312,7 @@ if __name__ == "__main__":
 
 
     #
-    caps.train_model(X_train,y_train, batch_size, num_epochs = 5)
+    caps.train_model(X_train,y_train,X_test,y_test, num_epochs = 5)
 
 
 
