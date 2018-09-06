@@ -23,7 +23,13 @@ labels_urls[names[5]]="https://raw.githubusercontent.com/koyamabraintree/dataset
 
 
 ##### insert here your DropboxData ########
-DropboxDataRoot = '~/Braintree Ltd Dropbox/Research Department/Research Projects/GAMMA/Data/Samples/'
+
+
+## look at here https://wiki.braintree.com/GAMMA/GAMMA
+#data_path = os.environ['GAMMA_DATA_ROOT']
+#DropboxDataRoot = str(data_path)+ 'Samples/'
+data_path = '~/.gamma_data_root/'
+DropboxDataRoot = str(data_path)+ 'Samples/'
 
 class Dropbox:
     '''#Node id is made to start from 0 due to nauty package requirement, even if it starts from 1 in the original file
@@ -51,6 +57,12 @@ class Dropbox:
 
     def get_graph_ind(self): 
         df_graph_ind = pd.read_csv(os.path.join(DropboxDataRoot,self.graph_ind_filename), delimiter=' ',header=None)
+        df_graph_ind.columns =['graph_ind']
+        df_graph_ind['node'] = df_graph_ind.index.values
+        return df_graph_ind
+
+    def get_graph_label(self): 
+        df_graph_ind = pd.read_csv(os.path.join(DropboxDataRoot,self.graph_label_filename), delimiter=' ',header=None)
         df_graph_ind.columns =['graph_label']
         df_graph_ind['node'] = df_graph_ind.index.values
         return df_graph_ind

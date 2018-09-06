@@ -1,6 +1,10 @@
 
 
 # coding: utf-8
+
+# In[1]:
+
+
 import json
 #import pydevd
 #pydevd.settrace('localhost', port=49309, stdoutToServer=True, stderrToServer=True)
@@ -11,6 +15,8 @@ import pandas as pd
 from tqdm import tqdm
 from collections import OrderedDict, defaultdict
 from six.moves import xrange
+#from __pynauty__ import graph
+#import pynauty.graph
 import pynauty
 import time
 import tensorflow as tf
@@ -23,21 +29,38 @@ from scipy.sparse import coo_matrix
 import os
 
 
-from . import Dataset, utils
+from PatchyTools import Dataset, utils
+
 
 # ### Load data
+
+# In[2]:
+
+
+
 '''
 #Node id is made to start from 0 due to nauty package requirement, even if it starts from 1 in the original
 #Graph id is starting from 1
 '''
 
+mutag = Dataset.Dropbox('MUTAG')
+df_edge_label = mutag.get_edge_label()
+df_graph_ind = mutag.get_graph_ind()
+df_adj = mutag.get_adj()
+df_node_label = mutag.get_node_label()
+df_node_label = pd.concat([df_node_label, df_graph_ind.graph_label], axis=1)
+del df_graph_ind
+
 
 
 # ### Functions
 
+# In[3]:
+
+
 
 def get_subset_adj(df_adj, df_node_label,graph_label_num):
-    df_glabel = df_node_label[df_node_label.graph_ind == graph_label_num ]
+    df_glabel = df_node_label[df_node_label.graph_label == graph_label_num ]
     index_of_glabel = (df_adj['to'].isin(df_glabel.node) & df_adj['from'].isin(df_glabel.node))
     return df_adj[index_of_glabel]
 
@@ -51,7 +74,7 @@ def create_adj_dict_by_graphId(df_adj, df_node_label):
     return: {1: {0:[0,2,5]}} = {graphId: {nodeId:[node,node,node]}}
     '''
     adj_dict_by_graphId ={}
-    unique_graph_labels = df_node_label.graph_ind.unique()
+    unique_graph_labels = df_node_label.graph_label.unique()
     for l in unique_graph_labels:
         df_subset_adj = get_subset_adj(df_adj, df_node_label, graph_label_num=l)
         smallest_node_id = get_smallest_node_id_from_adj(df_subset_adj)
@@ -62,10 +85,10 @@ def create_adj_dict_by_graphId(df_adj, df_node_label):
 
 def canonical_labeling(adj_dict_by_graphId, df_node_label, df_adj):
     all_canonical_labels =[]
-    unique_graph_labels = df_node_label.graph_ind.unique()
+    unique_graph_labels = df_node_label.graph_label.unique()
     for l in unique_graph_labels:
         df_subset_adj = adj_dict_by_graphId[l]
-        df_subset_nodes = df_node_label[df_node_label.graph_ind==l]
+        df_subset_nodes = df_node_label[df_node_label.graph_label==l]
         temp_graph_dict = utils.dfadj_to_dict(df_subset_adj)
         nauty_graph = nauty.Graph(len(temp_graph_dict), adjacency_dict=temp_graph_dict)
         canonical_labeling = nauty.canonical_labeling(nauty_graph)
@@ -80,10 +103,10 @@ def create_adj_coomatrix_by_graphId(adj_dict_by_graphId, df_node_label):
     """
 
     adj_coomatrix_by_graphId ={}
-    unique_graph_labels = df_node_label.graph_ind.unique()
+    unique_graph_labels = df_node_label.graph_label.unique()
     for l in unique_graph_labels:
         df_subset_adj = adj_dict_by_graphId[l]
-        df_subset_node_label = df_node_label[df_node_label.graph_ind == l]
+        df_subset_node_label = df_node_label[df_node_label.graph_label == l]
         adjacency = coo_matrix(( np.ones(len(df_subset_adj)),
                                 (df_subset_adj.iloc[:,0].values, df_subset_adj.iloc[:,1].values) ),
                                  shape=(len(df_subset_node_label), len(df_subset_node_label))
@@ -97,9 +120,11 @@ def make_neighbor(adj_coomatrix_by_graphId, df_node_label, WIDTH_W, RECEPTIVE_FI
     return: a dictionary with the shape of {graphId:[matrix: node x neighbor]}
     The size of 2D matrix is (Node number) x (RECEPTIVE_FIELD_SIZE_K).
     """
+
     neighborhoods_dict=dict()
-    unique_graph_labels = df_node_label.graph_ind.unique()
-    for l_ind, l in enumerate(unique_graph_labels):
+
+    unique_graph_labels = df_node_label.graph_label.unique()
+    for l in unique_graph_labels:
         adjacency = adj_coomatrix_by_graphId[l]
         graph = nx.from_numpy_matrix(adjacency.todense())
 
@@ -108,7 +133,7 @@ def make_neighbor(adj_coomatrix_by_graphId, df_node_label, WIDTH_W, RECEPTIVE_FI
         neighborhoods = np.zeros((WIDTH_W, RECEPTIVE_FIELD_SIZE_K), dtype=np.int32)
         neighborhoods.fill(-1)
 
-        df_sequence = df_node_label[df_node_label.graph_ind == l]
+        df_sequence = df_node_label[df_node_label.graph_label == l]
         df_sequence = df_sequence.sort_values(by='cano_label')
         smallest_node_id = df_sequence.node.min()
 
@@ -131,16 +156,47 @@ def make_neighbor(adj_coomatrix_by_graphId, df_node_label, WIDTH_W, RECEPTIVE_FI
             #shortest = shortest[:RECEPTIVE_FIELD_SIZE_K]
             for j in range(0, min(RECEPTIVE_FIELD_SIZE_K, len(df_shortest))):
                 #neighborhoods[i][j] = shortest[j][0]
-                neighborhoods[i][j] = df_shortest['node'].values[j] + smallest_node_id
+                neighborhoods[i][j] = df_shortest['node'].values[j]
 
-        #neighborhoods_dict[l]= neighborhoods.copy()
-        if l_ind ==0: neighborhoods_all = neighborhoods
-        else: neighborhoods_all = np.r_[neighborhoods_all, neighborhoods]
-    return neighborhoods_all
+        neighborhoods_dict[l]= neighborhoods.copy()
+    return neighborhoods_dict
 
+
+
+
+# ### Arguments
+
+# In[4]:
+
+
+
+now = time.time()
+
+
+# # Main (Timing starts here)
+
+# In[5]:
+
+
+
+
+#NUM_NODES
+RECEPTIVE_FIELD_SIZE_K = 20 # Receptive Field Size K
+WIDTH_W = 8 #threshold based on canonical label
+
+adj_dict_by_graphId = create_adj_dict_by_graphId(df_adj, df_node_label)
+cano_label = canonical_labeling(adj_dict_by_graphId, df_node_label, df_adj)
+df_node_label = pd.concat([df_node_label, pd.Series(cano_label, dtype=int, name='cano_label')],  axis=1)
+
+#cert_list = [i for i in (nauty.certificate(nauty_graph))]
+# '''canonical_labeling = [df_node_label.label.values[i] for i in canonical_labeling]'''
 
 
 # ###### Show the frequency of labels to make threshold
+
+# In[6]:
+
+
 '''
 # #How to select top w elements of V according to labeling  
 df_node_label.cano_label.value_counts().plot(kind='bar')
@@ -161,55 +217,116 @@ plt.show()
 
 # ### Get several nodes with a condition of cano_label (sequence)
 
-def tensor(neighborhoods, WIDTH_W, RECEPTIVE_FIELD_SIZE_K, df_node_label):
-    feature_list = feature_list = df_node_label['label'].unique()
-    num_features = len(feature_list)
+# In[7]:
 
-    nodes_features = pd.get_dummies(df_node_label.label,
+feature_list = df_node_label['label'].unique()
+num_features = len(feature_list)
+adj_coomatrix_by_graphId = create_adj_coomatrix_by_graphId(adj_dict_by_graphId, df_node_label)
+
+
+
+
+
+# ### Things about tensorflow constraction
+# In[8]:
+
+
+
+# In[10]:
+
+def combine_features(graph_id, neighborhoods_graph, WIDTH_W, RECEPTIVE_FIELD_SIZE_K):
+    """
+    neighborhoods[graphId]: This represents the matrix of (nodes x neighbor).
+    nodes: This represents the matrix of (nodes x features).
+    """
+
+    neighborhoods = tf.constant(neighborhoods_graph[graph_id], dtype=tf.int32)
+
+    sparse_df = pd.get_dummies(df_node_label.loc[df_node_label.graph_label==graph_id].label,
                                columns=feature_list,
                                sparse=True )
 
     #### Reindex and transporse to get columns of get dummy #########
-    nodes_features = nodes_features.T.reindex(feature_list).T.fillna(0)
-    nodes_features = nodes_features.values
-    zero_features_for_padding_at_the_end = np.zeros((1, nodes_features.shape[1]), dtype=float)
-    nodes_features = np.r_[nodes_features, zero_features_for_padding_at_the_end]
+    sparse_df = sparse_df.T.reindex(feature_list).T.fillna(0)
+    nodes = tf.constant(sparse_df.values, dtype=tf.int32 )
 
-    i_list = np.reshape(neighborhoods, [-1])
-    the_place_of_zero_features_for_padding = i_list.max() + 1 
-    i_list = np.where(i_list<0 , the_place_of_zero_features_for_padding, i_list)
-    ret = nodes_features[i_list]
+    with tf.Session() as sess:
+        print ('shape of neighborhoods', neighborhoods.shape)
+        data = tf.reshape(neighborhoods, [-1])
+        i = tf.maximum(data, 0)
+        i_list = i.eval()
+        #print(i_list)
 
-    graph_data_size = len(df_node_label.graph_ind.unique())
 
-    ret_by_graph = np.reshape(ret, (graph_data_size, WIDTH_W*RECEPTIVE_FIELD_SIZE_K, num_features))
-    finalshape = ([graph_data_size, WIDTH_W, RECEPTIVE_FIELD_SIZE_K,num_features])
-    ret = np.reshape(ret_by_graph, finalshape)
+        #tf.gather_nd should be used here.
+
+
+        for ind, i in enumerate(i_list):
+            if ind ==0:
+                positive = tf.strided_slice(nodes, [i], [i+1], [1])
+                #positive = tf.constant(temp)
+            else:
+                temp = tf.strided_slice(nodes, [i], [i+1], [1])
+                positive = tf.concat([positive,temp],axis=0)
+
+        negative = tf.zeros([positive.shape[0], positive.shape[1]], dtype= tf.int32)
+
+        #print ('shape', data.shape, negative.shape, positive.shape)
+        #print ( data, negative, positive)
+
+        # padding with 0 here because -1 indicates there is no neighbor nodes.
+        ret = tf.where(data < 0, negative, positive)
+        #print('padding done')
+
+
+        ret = tf.reshape(ret,
+                         [WIDTH_W,
+                          RECEPTIVE_FIELD_SIZE_K,
+                          num_features])
+        #print (key, 'ret.shape: ',ret.shape)
+        ret = ret.eval()
+
     return ret
 
-
-#NUM_NODES
-#RECEPTIVE_FIELD_SIZE_K = 20 # Receptive Field Size K
-#WIDTH_W = 8 #threshold based on canonical label
+#stop stp stp
 
 
 
-def main(WIDTH_W, RECEPTIVE_FIELD_SIZE_K, datasetname='MUTAG'):
-    mutag = Dataset.Dropbox(datasetname)
-
-    #df_edge_label = mutag.get_edge_label()
-    df_adj = mutag.get_adj()
-    df_node_label = mutag.get_node_label()
-
-    df_node_label = pd.concat([df_node_label, mutag.get_graph_ind().graph_ind], axis=1)
+def save_object(obj, filename):
+    with open(filename, 'wb') as output:  # Overwrites any existing file.
+        pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
 
 
-    adj_dict_by_graphId = create_adj_dict_by_graphId(df_adj, df_node_label)
-    adj_coomatrix_by_graphId = create_adj_coomatrix_by_graphId(adj_dict_by_graphId, df_node_label)
 
-    cano_label = canonical_labeling(adj_dict_by_graphId, df_node_label, df_adj)
-    df_node_label = pd.concat([df_node_label, pd.Series(cano_label, dtype=int, name='cano_label')], axis=1)
 
+def main(WIDTH_W, RECEPTIVE_FIELD_SIZE_K):
+    global now
     neighborhoods_graph = make_neighbor(adj_coomatrix_by_graphId, df_node_label, WIDTH_W=WIDTH_W, RECEPTIVE_FIELD_SIZE_K=RECEPTIVE_FIELD_SIZE_K)
-    result_tensor = tensor(neighborhoods_graph, WIDTH_W, RECEPTIVE_FIELD_SIZE_K, df_node_label)
+    print ('after neibor assemble: ', time.time()-now)
+    for key in adj_dict_by_graphId.keys():
+        result_tensor = combine_features(key, neighborhoods_graph,WIDTH_W, RECEPTIVE_FIELD_SIZE_K)
     return  result_tensor
+
+
+
+#list_WIDTH_W=[12,15,18,21,24]
+#list_RECEPTIVE_FIELD_SIZE_K=[2,3,4,5,10]
+list_WIDTH_W=[15]
+list_RECEPTIVE_FIELD_SIZE_K=[2]
+secondsret = pd.DataFrame(np.zeros((len(list_WIDTH_W),len(list_RECEPTIVE_FIELD_SIZE_K)),dtype=float))
+
+for w_ind, w in enumerate(list_WIDTH_W):
+    for k_ind, k in enumerate(list_RECEPTIVE_FIELD_SIZE_K):
+        print (k, w, 'has been started')
+        now = time.time()
+        result_patcy = main(w,k)
+        #print ('result_patcy', result_patcy)
+        seconds = time.time() - now
+        print ('after neibor assemble: ', time.time() - now)
+
+        secondsret.iloc[w_ind, k_ind] = seconds
+
+        #secondsret.to_csv('mutag_seconds_result.csv')
+        #save_object(result_patcy, 'patchy_np_array_mutag_w{}k{}.pkl'.format(w,k))
+
+
