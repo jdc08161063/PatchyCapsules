@@ -3,7 +3,7 @@ import tensorflow as tf
 import numpy as np
 import sys
 sys.path.append('../PatchyCapsules')
-from utils import load_image_data
+from utils_caps import load_image_data
 
 def reset_graph(seed=42):
     tf.reset_default_graph()
