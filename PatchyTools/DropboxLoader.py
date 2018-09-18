@@ -31,12 +31,12 @@ class DropboxLoader(object):
     
     '''
     
-    def __init__(self,datasetname, gamma_path = GAMMA_PATH):
-        self.node_label_filename =  '{0}/{0}_node_labels.txt'.format(datasetname)
-        self.edge_label_filename = '{0}/{0}_edge_labels.txt'.format(datasetname)
-        self.adj_filename = '{0}/{0}_A.txt'.format(datasetname)
-        self.graph_ind_filename = '{0}/{0}_graph_indicator.txt'.format(datasetname)
-        self.graph_label_filename = '{0}/{0}_graph_labels.txt'.format(datasetname)
+    def __init__(self, dataset_name, gamma_path = GAMMA_PATH):
+        self.node_label_filename =  '{0}/{0}_node_labels.txt'.format(dataset_name)
+        self.edge_label_filename = '{0}/{0}_edge_labels.txt'.format(dataset_name)
+        self.adj_filename = '{0}/{0}_A.txt'.format(dataset_name)
+        self.graph_ind_filename = '{0}/{0}_graph_indicator.txt'.format(dataset_name)
+        self.graph_label_filename = '{0}/{0}_graph_labels.txt'.format(dataset_name)
         self.DropboxDataRoot = gamma_path + 'Samples'
 
     def get_node_label(self):

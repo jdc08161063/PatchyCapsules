@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import tensorflow as tf
 import numpy as np
+import sys
+sys.path.append('../PatchyCapsules')
+from utils import load_image_data
 
 def reset_graph(seed=42):
     tf.reset_default_graph()
@@ -35,7 +38,8 @@ def routing(u_hat, b_IJ, num_iter):
             else:
                 s_j = tf.reduce_sum(tf.multiply(c,u_hat_stopped),axis = 1,keepdims=True)
                 v = squash(s_j)
-                v_tiled = tf.tile(v,[1, 1152,1,1,1])
+                #v_tiled = tf.tile(v,[1, 1152,1,1,1])
+                v_tiled = tf.tile(v, [1, u_hat.shape[1].value, 1, 1, 1])
                 a = tf.matmul(u_hat_stopped, v_tiled, transpose_a=True)
                 b_IJ = b_IJ + a
 #         print('c shape: ',c.shape)
@@ -62,12 +66,23 @@ class CapsuleNetwork(object):
         self.num_outputs = num_outputs
 
 
+    def set_training_parameters(self,X_train,print_config = False):
+        self.train_size = X_train.shape[0]
+        self.height,self.width = X_train.shape[1,3]
+        if len(X_train.shape) == 3:
+            self.num_channels = 1
+        else:
+            self.num_channels = X_train.shape[-1]
+
+        if print_config == True:
+            print('shape of training set : ', X_train.shape)
+
+
 
 
     def train_model(self,X_train,y_train, X_test, y_test, num_epochs = 10):
 
-        num_epochs = 5
-        train_size = X_train.shape[0]
+        self.set_training_parameters(X_train)
         num_batches = n_batches = int(X_train.shape[0]/self.batch_size)
         num_batches_test = int(X_test.shape[0] / self.batch_size)
 
@@ -99,7 +114,7 @@ class CapsuleNetwork(object):
 
                 print('Epoch {} :'.format(epoch))
                 # Shuffling and dividing into batches:
-                shuffled_idx = np.random.permutation(train_size)
+                shuffled_idx = np.random.permutation(self.train_size)
                 X_batches = np.array_split(X_train[shuffled_idx], num_batches)
                 y_batches = np.array_split(y_train[shuffled_idx], num_batches)
 
@@ -135,6 +150,14 @@ class CapsuleNetwork(object):
                 print('accuracy test: {}'.format(test_accuracy))
 
 
+    def set_placeholders(self,batch_size):
+        # Initialize graph:
+        reset_graph()
+        # Placeholders:
+        X = tf.placeholder(shape=(batch_size, self.height, self.width, self.channels), dtype=tf.float32)
+        y = tf.placeholder(tf.int32, shape=(batch_size), name="y")
+        return X,y
+
 
     def build_capsule_arch(self,batch_size, X_place_train):
         # Building the graph:
@@ -162,13 +185,7 @@ class CapsuleNetwork(object):
 
 
 
-    def set_placeholders(self,batch_size):
-        # Initialize graph:
-        reset_graph()
-        # Placeholders:
-        X = tf.placeholder(shape=(batch_size, self.height, self.width, self.channels), dtype=tf.float32)
-        y = tf.placeholder(tf.int32, shape=(batch_size), name="y")
-        return X,y
+
 
 
     # Building the architecture:
@@ -185,7 +202,9 @@ class CapsuleNetwork(object):
         with tf.name_scope('caps'):
             caps = tf.layers.conv2d(conv, filters=256, kernel_size=9, strides=[2, 2], padding='VALID')
             print('caps shape: ', caps.shape)
-            u_i = tf.reshape(caps, shape=[-1, 32 * 6 * 6, 8, 1])
+            caps_size = int(caps.shape[1])
+            u_i = tf.reshape(caps, shape=[-1, 32 * caps_size * caps_size, 8, 1])
+            #u_i = tf.reshape(caps, shape=[-1, 32 * 6 * 6, 8, 1])
             # caps2 = tf.layers.conv2d(caps1,filters=8,kernel_size=9,strides=[2,2],padding='VALID')
             u_i = squash(u_i)
             print('u_i shape: ', u_i.shape)
@@ -197,8 +216,10 @@ class CapsuleNetwork(object):
 
 
     def build_digit_caps_layer(self, batch_size, u_i):
+        u_i_size = u_i.shape[1].value
         with tf.variable_scope('final_layer'):
-            w_initializer = np.random.normal(size=[1, 1152, 10, 8, 16], scale=0.01)
+
+            w_initializer = np.random.normal(size=[1, u_i_size , 10, 8, 16], scale=0.01)
             W = tf.Variable(w_initializer, dtype=tf.float32)
 
             # repeat W with batch_size times to shape [batch_size, 1152, 8, 16]
@@ -218,6 +239,8 @@ class CapsuleNetwork(object):
                 b_IJ = tf.zeros([batch_size, u_i.shape[1].value, 10, 1, 1], dtype=np.float32)
                 print('b_IJ shape: ', b_IJ.shape)
                 v, b_IJ = routing(u_hat, b_IJ, self.num_iter)
+                print('After routing : ')
+                print('v shape: ', v.shape)
                 return v, b_IJ
 
     def calculate_total_loss(self, X_place, y_place, y_train, batch_size): # delete v
@@ -273,8 +296,8 @@ class CapsuleNetwork(object):
             dec2 = tf.layers.dense(inputs=dec1, units=512, activation=tf.nn.relu)
             # 1 FC Sigmoid:
             dec3 = tf.layers.dense(inputs=dec2, units=self.num_inputs, activation=tf.nn.sigmoid)
-            #loss_reg = tf.norm(tf.reshape(X_place, [batch_size, self.num_inputs]) - dec3)
-            loss_reg = tf.sqrt(tf.reduce_sum(tf.square(tf.reshape(X_place, [batch_size, self.num_inputs]) - dec3)))
+            #loss_reg = tf.sqrt(tf.reduce_sum(tf.square(tf.reshape(X, [batch_size, num_inputs * num_channels]) - dec3)))
+            loss_reg = tf.sqrt(tf.reduce_sum(tf.square(tf.reshape(X_place, [batch_size, self.num_inputs*self.num_channels]) - dec3)))
 
             return loss_reg
 
@@ -283,28 +306,39 @@ class CapsuleNetwork(object):
 
 if __name__ == "__main__":
     # Downloading mnist dataset:
-    (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
-    # Train set
-    X_train = X_train.astype(np.float32).reshape(-1, 28, 28, 1) / 255.0
-    y_train = y_train.astype(np.int32)
-    # Test set:
-    X_test = X_test.astype(np.float32).reshape(-1, 28, 28, 1) / 255.0
-    y_test = y_test.astype(np.int32)
-    training_size = 2500
-    # Validation set:
-    X_train, X_valid = X_train[:training_size], X_train[training_size:]
-    y_train, y_valid = y_train[:training_size], y_train[training_size:]
 
-    # Some constants:
-    batch_size = 500  # None#X_train.shape[0]
-    # n_batches = int(X_train.shape[0]/batch_size)
-    num_inputs = 28 * 28
-    channels = 1
-    # n_output_conv1 = (20,20,256)
-    height, width = 28, 28
-    # variables:
-    num_iter = 5
-    num_outputs = 10
+    dataset = 'mnits'
+    dataset = 'cifar'
+
+    if dataset == 'mnist'
+        (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
+        # Train set
+        X_train = X_train.astype(np.float32).reshape(-1, 28, 28, 1) / 255.0
+        y_train = y_train.astype(np.int32)
+        # Test set:
+        X_test = X_test.astype(np.float32).reshape(-1, 28, 28, 1) / 255.0
+        y_test = y_test.astype(np.int32)
+        training_size = 2500
+        # Validation set:
+        X_train, X_valid = X_train[:training_size], X_train[training_size:]
+        y_train, y_valid = y_train[:training_size], y_train[training_size:]
+    else:
+        train_file_path = '../../others/CIFAR10-img-classification-tensorflow/cifar-10-batches-py/data_batch_1'
+        test_file_path = '../../others/CIFAR10-img-classification-tensorflow/cifar-10-batches-py/test_batchs'
+        X_train, y_train = load_image_data(train_file_path)
+        X_test, y_test = load_image_data(train_file_path)
+
+        # Some constants:
+        batch_size = 500  # None#X_train.shape[0]
+        # n_batches = int(X_train.shape[0]/batch_size)
+        num_inputs = 28 * 28
+        channels = 1
+        # n_output_conv1 = (20,20,256)
+        height, width = 28, 28
+        # variables:
+        num_iter = 5
+        num_outputs = 10
+
 
 
     caps = CapsuleNetwork(batch_size,num_inputs,\
