@@ -88,7 +88,7 @@ class CapsuleNetwork(object):
 
 
         # Create Placeholders:
-        self.X_place, self.y_place = self.set_placeholders(batch_size)
+        self.X_place, self.y_place = self.set_placeholders(self.batch_size)
 
         # Define forward pass:
         self.build_capsule_arch(self.batch_size,self.X_place)
@@ -351,7 +351,7 @@ if __name__ == "__main__":
 
 
     #
-    caps.train_model(X_train,y_train,X_test,y_test, num_epochs = 5)
+    caps.train_model(X_train,y_train,X_test,y_test, num_epochs = 20)
 
 
 
