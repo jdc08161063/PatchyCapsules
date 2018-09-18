@@ -68,7 +68,7 @@ class CapsuleNetwork(object):
 
     def set_training_parameters(self,X_train,print_config = False):
         self.train_size = X_train.shape[0]
-        self.height,self.width = X_train.shape[1,3]
+        self.height,self.width = X_train.shape[1:3]
         if len(X_train.shape) == 3:
             self.num_channels = 1
         else:
@@ -307,10 +307,10 @@ class CapsuleNetwork(object):
 if __name__ == "__main__":
     # Downloading mnist dataset:
 
-    dataset = 'mnits'
-    dataset = 'cifar'
+    dataset = 'mnist'
+    #dataset = 'cifar'
 
-    if dataset == 'mnist'
+    if dataset == 'mnist':
         (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
         # Train set
         X_train = X_train.astype(np.float32).reshape(-1, 28, 28, 1) / 255.0
@@ -322,6 +322,7 @@ if __name__ == "__main__":
         # Validation set:
         X_train, X_valid = X_train[:training_size], X_train[training_size:]
         y_train, y_valid = y_train[:training_size], y_train[training_size:]
+
     else:
         train_file_path = '../../others/CIFAR10-img-classification-tensorflow/cifar-10-batches-py/data_batch_1'
         test_file_path = '../../others/CIFAR10-img-classification-tensorflow/cifar-10-batches-py/test_batchs'
@@ -329,17 +330,21 @@ if __name__ == "__main__":
         X_test, y_test = load_image_data(train_file_path)
 
         # Some constants:
-        batch_size = 500  # None#X_train.shape[0]
+
         # n_batches = int(X_train.shape[0]/batch_size)
         num_inputs = 28 * 28
         channels = 1
         # n_output_conv1 = (20,20,256)
         height, width = 28, 28
         # variables:
-        num_iter = 5
-        num_outputs = 10
 
 
+
+    batch_size = 250
+    height, width, num_channels = X_train.shape[1:]
+    num_inputs = height * width
+    num_outputs = 10
+    num_iter = 5
 
     caps = CapsuleNetwork(batch_size,num_inputs,\
                           num_outputs,num_iter)
