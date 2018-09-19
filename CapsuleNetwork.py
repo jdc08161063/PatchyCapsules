@@ -346,6 +346,9 @@ if __name__ == "__main__":
     num_outputs = 10
     num_iter = 5
 
+    print('TensorFlow Version: {}'.format(tf.__version__)) 
+    print('Default GPU Device: {}'.format(tf.test.gpu_device_name()))
+
     caps = CapsuleNetwork(batch_size,num_inputs,\
                           num_outputs,num_iter)
 
