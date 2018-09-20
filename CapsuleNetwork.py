@@ -5,6 +5,7 @@ import sys
 sys.path.append('../PatchyCapsules')
 from utils_caps import load_image_data
 from utils_caps import subsample
+from time import time
 
 
 def reset_graph(seed=42):
@@ -112,8 +113,9 @@ class CapsuleNetwork(object):
 
             sess.run(tf.initialize_all_variables())
 
-            for epoch in range(num_epochs):
 
+            for epoch in range(num_epochs):
+                start = time()
                 print('Epoch {} :'.format(epoch))
                 # Shuffling and dividing into batches:
                 shuffled_idx = np.random.permutation(self.train_size)
@@ -150,7 +152,7 @@ class CapsuleNetwork(object):
 
                 test_accuracy = sum(y_pred_test == y_test) / len(y_pred_test)
                 print('accuracy test: {}'.format(test_accuracy))
-
+                print('time: {}'.format(time()-start))
 
     def set_placeholders(self,batch_size):
         # Initialize graph:
@@ -314,8 +316,8 @@ class CapsuleNetwork(object):
 if __name__ == "__main__":
     # Downloading mnist dataset:
 
-    #dataset = 'mnist'
-    dataset = 'cifar'
+    dataset = 'mnist'
+    #dataset = 'cifar'
     subsample_ratio = 0.25
 
     if dataset == 'mnist':
@@ -363,11 +365,11 @@ if __name__ == "__main__":
     print('TensorFlow Version: {}'.format(tf.__version__)) 
     print('Default GPU Device: {}'.format(tf.test.gpu_device_name()))
 
-    caps = CapsuleNetwork(batch_size,num_inputs,\
+    caps = CapsuleNetwork(batch_size,num_inputs,
                           num_outputs,num_iter)
 
 
-    #
+    # Training
     caps.train_model(X_train,y_train,X_test,y_test, num_epochs = 20)
 
 
