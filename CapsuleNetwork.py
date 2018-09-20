@@ -6,6 +6,7 @@ sys.path.append('../PatchyCapsules')
 from utils_caps import load_image_data
 from utils_caps import subsample
 from time import time
+import argparse
 
 
 def reset_graph(seed=42):
@@ -314,12 +315,23 @@ class CapsuleNetwork(object):
 
 
 if __name__ == "__main__":
-    # Downloading mnist dataset:
 
-    dataset = 'mnist'
+    # Arguments:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('dataset', help='dataset to train on', default='cifar')
+    parser.add_argument('sampling_ratio', help='ratio to sample on', default=0.2)
+
+
+    # Parsing arguments:
+    args = parser.parse_args()
+    dataset = args.dataset
+    subsample_ratio = float(args.sampling_ratio)
+
+    #dataset = 'mnist'
     #dataset = 'cifar'
-    subsample_ratio = 0.25
+    #subsample_ratio = 0.25
 
+    print('training on {}'.format(dataset))
     if dataset == 'mnist':
 
         (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
