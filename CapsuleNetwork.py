@@ -318,8 +318,8 @@ if __name__ == "__main__":
 
     # Arguments:
     parser = argparse.ArgumentParser()
-    parser.add_argument('dataset', help='dataset to train on', default='cifar')
-    parser.add_argument('sampling_ratio', help='ratio to sample on', default=0.2)
+    parser.add_argument('-dataset', help='dataset to train on', default='cifar')
+    parser.add_argument('-sampling_ratio', help='ratio to sample on', default=0.2)
 
 
     # Parsing arguments:
