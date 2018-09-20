@@ -348,7 +348,7 @@ if __name__ == "__main__":
         print('Testin sample size : ', X_test.shape)
 
 
-    batch_size = 100
+    batch_size = 250
     height, width, num_channels = X_train.shape[1:]
     print('Height: {}, width : {}, number of channels : {} '.format(height,width,num_channels))
     num_inputs = height * width * num_channels
