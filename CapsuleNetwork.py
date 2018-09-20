@@ -7,6 +7,7 @@ from utils_caps import load_image_data
 from utils_caps import subsample
 from time import time
 import argparse
+import pandas as pd
 
 
 def reset_graph(seed=42):
@@ -63,8 +64,8 @@ class CapsuleNetwork(object):
         self.batch_size = batch_size  # None#X_train.shape[0]
         # n_batches = int(X_train.shape[0]/batch_size)
         self.num_inputs = num_inputs # 128
-        self.num_channels = 1
-        self.height, self.width = 28, 28
+        #self.num_channels = 1
+        #self.height, self.width = 28, 28
         # variables:
         self.num_iter = num_iter
         self.num_outputs = num_outputs
@@ -89,6 +90,11 @@ class CapsuleNetwork(object):
         self.set_training_parameters(X_train)
         num_batches = n_batches = int(X_train.shape[0]/self.batch_size)
         num_batches_test = int(X_test.shape[0] / self.batch_size)
+
+        # Appending the loss:
+        self.list_loss = []
+        self.list_train_accuracy = []
+        self.list_test_accuracy = []
 
 
         # Create Placeholders:
@@ -126,8 +132,11 @@ class CapsuleNetwork(object):
                 y_pred_train = np.array([])
                 # SGD:
                 for X_batch, y_batch in zip(X_batches, y_batches):
-                    sess.run(self.training_op, feed_dict={self.X_place: X_batch,
+                    # Running the training, and the loss
+                    _, epoch_loss = sess.run([self.training_op, loss], feed_dict={self.X_place: X_batch,
                                                           self.y_place: y_batch})
+                    self.list_loss.append(epoch_loss)
+
 
                     y_pred_batch = sess.run(self.get_predictions(self.v),
                                             feed_dict={self.X_place: X_batch, self.y_place: y_batch})
@@ -189,10 +198,6 @@ class CapsuleNetwork(object):
 
 
 
-
-
-
-
     # Building the architecture:
 
     def build_first_cnn_layer(self, X, num_filters= 256, kernel_size= 9):
@@ -247,6 +252,9 @@ class CapsuleNetwork(object):
                 print('After routing : ')
                 print('v shape: ', v.shape)
                 return v, b_IJ
+
+
+    # Loss function:
 
     def calculate_total_loss(self, X_place, y_place, y_train, batch_size): # delete v
         margin_loss = self.calculate_margin_loss(y_place)
@@ -311,6 +319,12 @@ class CapsuleNetwork(object):
 
             return loss_reg
 
+    def create_df(self,name='report_capsule.csv'):
+        report_df = pd.DataFrame({'loss':self.list_loss,
+                                  'train_accuracy':self.list_train_accuracy,
+                                  'test_accuracy': self.list_test_accuracy})
+
+        report_df.to_csv(name)
 
 
 

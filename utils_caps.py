@@ -7,7 +7,7 @@ def unpickle(file):
         dictio = pickle.load(fo, encoding='bytes')
     return dictio
 
-def load_image_data(data_path, normalize=True ):
+def load_image_data(data_path, normalize=True):
     if 'cifar' in data_path:
         dictio_data = unpickle(data_path)
         X = dictio_data[b'data'].reshape([10000,3,32,32]).transpose(0,2,3,1)
