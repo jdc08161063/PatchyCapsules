@@ -4,6 +4,8 @@ import numpy as np
 import sys
 sys.path.append('../PatchyCapsules')
 from utils_caps import load_image_data
+from utils_caps import subsample
+
 
 def reset_graph(seed=42):
     tf.reset_default_graph()
@@ -59,7 +61,7 @@ class CapsuleNetwork(object):
         self.batch_size = batch_size  # None#X_train.shape[0]
         # n_batches = int(X_train.shape[0]/batch_size)
         self.num_inputs = num_inputs # 128
-        self.channels = 1
+        self.num_channels = 1
         self.height, self.width = 28, 28
         # variables:
         self.num_iter = num_iter
@@ -154,7 +156,7 @@ class CapsuleNetwork(object):
         # Initialize graph:
         reset_graph()
         # Placeholders:
-        X = tf.placeholder(shape=(batch_size, self.height, self.width, self.channels), dtype=tf.float32)
+        X = tf.placeholder(shape=(batch_size, self.height, self.width, self.num_channels), dtype=tf.float32)
         y = tf.placeholder(tf.int32, shape=(batch_size), name="y")
         return X,y
 
@@ -293,11 +295,11 @@ class CapsuleNetwork(object):
         with tf.name_scope('decoder'):
             # 2 FC Relu:
             dec1 = tf.layers.dense(inputs=v_masked, units=512, activation=tf.nn.relu)
-            dec2 = tf.layers.dense(inputs=dec1, units=512, activation=tf.nn.relu)
+            dec2 = tf.layers.dense(inputs=dec1, units=1024, activation=tf.nn.relu)
             # 1 FC Sigmoid:
             dec3 = tf.layers.dense(inputs=dec2, units=self.num_inputs, activation=tf.nn.sigmoid)
             #loss_reg = tf.sqrt(tf.reduce_sum(tf.square(tf.reshape(X, [batch_size, num_inputs * num_channels]) - dec3)))
-            loss_reg = tf.sqrt(tf.reduce_sum(tf.square(tf.reshape(X_place, [batch_size, self.num_inputs*self.num_channels]) - dec3)))
+            loss_reg = tf.sqrt(tf.reduce_sum(tf.square(tf.reshape(X_place, [batch_size, self.num_inputs]) - dec3)))
 
             return loss_reg
 
@@ -307,10 +309,12 @@ class CapsuleNetwork(object):
 if __name__ == "__main__":
     # Downloading mnist dataset:
 
-    dataset = 'mnist'
-    #dataset = 'cifar'
+    #dataset = 'mnist'
+    dataset = 'cifar'
+    subsample_ratio = 0.25
 
     if dataset == 'mnist':
+
         (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data()
         # Train set
         X_train = X_train.astype(np.float32).reshape(-1, 28, 28, 1) / 255.0
@@ -318,10 +322,17 @@ if __name__ == "__main__":
         # Test set:
         X_test = X_test.astype(np.float32).reshape(-1, 28, 28, 1) / 255.0
         y_test = y_test.astype(np.int32)
-        training_size = 2500
+
+        X_train,y_train = subsample(X_train,y_train)
+        X_test, y_test = subsample(X_test, y_test)
+
+
         # Validation set:
-        X_train, X_valid = X_train[:training_size], X_train[training_size:]
-        y_train, y_valid = y_train[:training_size], y_train[training_size:]
+        # X_train, X_valid = X_train[:training_size], X_train[training_size:]
+        # y_train, y_valid = y_train[:training_size], y_train[training_size:]
+
+        print('Training sample size : ', X_train.shape)
+        print('Testin sample size : ', X_test.shape)
 
     else:
         train_file_path = '../../others/CIFAR10-img-classification-tensorflow/cifar-10-batches-py/data_batch_1'
@@ -329,20 +340,16 @@ if __name__ == "__main__":
         X_train, y_train = load_image_data(train_file_path)
         X_test, y_test = load_image_data(train_file_path)
 
-        # Some constants:
-
-        # n_batches = int(X_train.shape[0]/batch_size)
-        num_inputs = 28 * 28
-        channels = 1
-        # n_output_conv1 = (20,20,256)
-        height, width = 28, 28
-        # variables:
+        X_train,y_train = subsample(X_train,y_train)
+        X_test, y_test = subsample(X_test, y_test)
+        print('Training sample size : ', X_train.shape)
+        print('Testin sample size : ', X_test.shape)
 
 
-
-    batch_size = 250
+    batch_size = 100
     height, width, num_channels = X_train.shape[1:]
-    num_inputs = height * width
+    print('Height: {}, width : {}, number of channels : {} '.format(height,width,num_channels))
+    num_inputs = height * width * num_channels
     num_outputs = 10
     num_iter = 5
 

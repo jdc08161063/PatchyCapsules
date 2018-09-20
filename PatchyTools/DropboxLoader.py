@@ -56,7 +56,7 @@ class DropboxLoader(object):
     def get_graph_ind(self):
         graph_ind_path = os.path.join(self.DropboxDataRoot, self.graph_ind_filename)
         df_graph_ind = pd.read_csv(graph_ind_path, delimiter=' ',header=None)
-        df_graph_ind.columns =['graph_label']
+        df_graph_ind.columns =['graph_ind']
         df_graph_ind['node'] = df_graph_ind.index.values
         return df_graph_ind
     
