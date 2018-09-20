@@ -335,8 +335,10 @@ if __name__ == "__main__":
         print('Testin sample size : ', X_test.shape)
 
     else:
-        train_file_path = '../../others/CIFAR10-img-classification-tensorflow/cifar-10-batches-py/data_batch_1'
-        test_file_path = '../../others/CIFAR10-img-classification-tensorflow/cifar-10-batches-py/test_batchs'
+        #train_file_path = '../../others/CIFAR10-img-classification-tensorflow/cifar-10-batches-py/data_batch_1'
+        #test_file_path = '../../others/CIFAR10-img-classification-tensorflow/cifar-10-batches-py/test_batchs'
+        train_file_path ='../data/cifar/data_batch_1'
+        test_file_path = '../data/cifar/test_batch'
         X_train, y_train = load_image_data(train_file_path)
         X_test, y_test = load_image_data(train_file_path)
 
