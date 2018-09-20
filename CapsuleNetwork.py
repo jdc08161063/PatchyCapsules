@@ -301,6 +301,11 @@ class CapsuleNetwork(object):
             #loss_reg = tf.sqrt(tf.reduce_sum(tf.square(tf.reshape(X, [batch_size, num_inputs * num_channels]) - dec3)))
             loss_reg = tf.sqrt(tf.reduce_sum(tf.square(tf.reshape(X_place, [batch_size, self.num_inputs]) - dec3)))
 
+            print('Decoder Architecture:')
+            print('dec1 shape: ',dec1.shape)
+            print('dec2 shape: ', dec2.shape)
+            print('dec3 shape: ', dec3.shape)
+
             return loss_reg
 
 
@@ -323,8 +328,8 @@ if __name__ == "__main__":
         X_test = X_test.astype(np.float32).reshape(-1, 28, 28, 1) / 255.0
         y_test = y_test.astype(np.int32)
 
-        X_train,y_train = subsample(X_train,y_train)
-        X_test, y_test = subsample(X_test, y_test)
+        X_train,y_train = subsample(X_train,y_train, subsample_ratio)
+        X_test, y_test = subsample(X_test, y_test, subsample_ratio)
 
 
         # Validation set:
@@ -332,7 +337,7 @@ if __name__ == "__main__":
         # y_train, y_valid = y_train[:training_size], y_train[training_size:]
 
         print('Training sample size : ', X_train.shape)
-        print('Testin sample size : ', X_test.shape)
+        print('Testing sample size : ', X_test.shape)
 
     else:
         #train_file_path = '../../others/CIFAR10-img-classification-tensorflow/cifar-10-batches-py/data_batch_1'
@@ -342,10 +347,10 @@ if __name__ == "__main__":
         X_train, y_train = load_image_data(train_file_path)
         X_test, y_test = load_image_data(train_file_path)
 
-        X_train,y_train = subsample(X_train,y_train)
-        X_test, y_test = subsample(X_test, y_test)
+        X_train,y_train = subsample(X_train, y_train, subsample_ratio)
+        X_test, y_test = subsample(X_test, y_test, subsample_ratio)
         print('Training sample size : ', X_train.shape)
-        print('Testin sample size : ', X_test.shape)
+        print('Testing sample size : ', X_test.shape)
 
 
     batch_size = 250
