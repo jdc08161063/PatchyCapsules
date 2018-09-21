@@ -162,6 +162,8 @@ class CapsuleNet(object):
                     y_pred_train= np.hstack([y_pred_train, y_pred_batch])
 
                 train_accuracy = sum(y_pred_train == y_train[shuffled_idx]) / len(y_pred_train)
+
+                print('Loss test: {}'.format(epoch_loss))
                 print('accuracy train: {}'.format(train_accuracy))
 
 
@@ -179,7 +181,7 @@ class CapsuleNet(object):
                 test_accuracy = sum(y_pred_test == y_test) / len(y_pred_test)
                 print('accuracy test: {}'.format(test_accuracy))
                 print('time: {}'.format(time()-start))
-                if epoch %5 ==0:
+                if epoch % 5 == 0:
                     save_path = saver.save(sess, "../data/models/my_model.ckpt")
 
             save_path = saver.save(sess, "/data/models/my_model_final.ckpt")
@@ -486,7 +488,7 @@ if __name__ == "__main__":
     # First Capsule Layer:
     caps_layer_params = {}
     caps_layer_params['num_filters'] = 256
-    caps_layer_params['kernel_size'] = 9
+    caps_layer_params['kernel_size'] = 10
     caps_layer_params['strides'] = [2,2]
     caps_layer_params['padding'] = 'VALID'
     caps_layer_params['caps_num_out'] = 64
