@@ -8,7 +8,9 @@ from utils_caps import subsample
 from time import time
 import argparse
 import pandas as pd
-from LayerParameters import LayerParameters
+from CapsuleParameters import CapsuleParameters
+from datetime import datetime
+
 
 
 def reset_graph(seed=42):
@@ -70,6 +72,9 @@ class CapsuleNet(object):
         # variables:
         self.num_iter = num_iter
         self.num_outputs = num_outputs
+        self.root_logdir = "../data/tf_logs"
+
+
 
 
     def set_training_parameters(self,X_train,print_config = False):
@@ -114,12 +119,16 @@ class CapsuleNet(object):
         with tf.name_scope('evalute_on_training'):
             self.train_error = []
 
+        saver = tf.train.Saver()
 
         with tf.Session() as sess:
 
             sess.run(tf.initialize_all_variables())
 
+            now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+            logdir = "{}/run-{}/".format(self.root_logdir, now)
 
+            step =0
             for epoch in range(num_epochs):
                 start = time()
                 print('Epoch {} :'.format(epoch))
@@ -134,6 +143,14 @@ class CapsuleNet(object):
                     # Running the training, and the loss
                     _, epoch_loss = sess.run([self.training_op, loss], feed_dict={self.X_place: X_batch,
                                                           self.y_place: y_batch})
+
+                    # Adding to summary:
+                    loss_summary = tf.summary.scalar('loss', loss)
+                    step += 1
+                    file_writer = tf.summary.FileWriter(logdir, tf.get_default_graph())
+                    summary_str = loss_summary.eval(feed_dict={self.X_place: X_batch, self.y_place: y_batch})
+                    file_writer.add_summary(summary_str, step)
+
                     self.list_loss.append(epoch_loss)
 
 
@@ -162,6 +179,11 @@ class CapsuleNet(object):
                 test_accuracy = sum(y_pred_test == y_test) / len(y_pred_test)
                 print('accuracy test: {}'.format(test_accuracy))
                 print('time: {}'.format(time()-start))
+                if epoch %5 ==0:
+                    save_path = saver.save(sess, "../data/models/my_model.ckpt")
+
+            save_path = saver.save(sess, "/data/models/my_model_final.ckpt")
+            file_writer.close()
 
     def set_placeholders(self,batch_size):
         # Initialize graph:
@@ -451,7 +473,7 @@ if __name__ == "__main__":
     print('Default GPU Device: {}'.format(tf.test.gpu_device_name()))
 
 
-    capsule_params= LayerParameters()
+    capsule_params= CapsuleParameters()
 
     # First conv layer: (num_filters, kernel_size)
     conv_layer_params = {}
