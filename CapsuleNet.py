@@ -8,8 +8,7 @@ from utils_caps import subsample
 from time import time
 import argparse
 import pandas as pd
-from CapsuleLayer import CapsuleLayer
-from CapsuleLayer import LayerParameters
+from LayerParameters import LayerParameters
 
 
 def reset_graph(seed=42):
