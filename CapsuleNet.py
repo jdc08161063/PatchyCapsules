@@ -8,6 +8,8 @@ from utils_caps import subsample
 from time import time
 import argparse
 import pandas as pd
+from CapsuleLayer import CapsuleLayer
+from CapsuleLayer import LayerParameters
 
 
 def reset_graph(seed=42):
@@ -54,7 +56,7 @@ def routing(u_hat, b_IJ, num_iter):
 #         print('b_IJ shape: ',b_IJ.shape)
     return v,b_IJ
 
-class CapsuleNetwork(object):
+class CapsuleNet(object):
 
     def __init__(self,batch_size,\
                       num_inputs,\
@@ -71,9 +73,6 @@ class CapsuleNetwork(object):
         self.num_outputs = num_outputs
 
 
-
-
-
     def set_training_parameters(self,X_train,print_config = False):
         self.train_size = X_train.shape[0]
         self.height,self.width = X_train.shape[1:3]
@@ -84,8 +83,6 @@ class CapsuleNetwork(object):
 
         if print_config == True:
             print('shape of training set : ', X_train.shape)
-
-
 
 
     def train_model(self,X_train,y_train, X_test, y_test, num_epochs = 10):
@@ -179,8 +176,11 @@ class CapsuleNetwork(object):
     def build_capsule_arch(self,batch_size, X_place_train):
         # Building the graph:
 
-        conv1 = self.build_first_cnn_layer(X_place_train,self.num_filters,self.kernel_size)
-        u_i = self.build_first_capsule_layer(conv1)
+        conv1 = self.build_cnn_layer(X_place_train) #,self.num_filters,self.kernel_size)
+        #u_i_caps = CapsuleLayer()
+        #u_i =u_i_caps.generate_capsule()
+
+        u_i = self.build_capsule_layer(conv1)
         self.v, self.b_IJ = self.build_digit_caps_layer(batch_size, u_i)
 
 
@@ -204,36 +204,89 @@ class CapsuleNetwork(object):
 
     # Building the architecture:
 
-    def build_first_cnn_layer(self, X, num_filters= 256, kernel_size= 9):
+
+
+    def build_cnn_layer(self, X):
         # First Conv layer:
+        current_layer = self.params.layer_parameters[0]
+        num_filters, kernel_size, strides, padding = self.params.get_conv_params(current_layer)
+        # DEfault:
+        # num_filters = 256
+        # kernel_size = 9
+        # strides  = [1,1]
+        # padding = 'VALID'
         with tf.name_scope('cnn'):
-            conv = tf.layers.conv2d(X, filters=num_filters, kernel_size=kernel_size, strides=[1, 1], padding='VALID')
+
+            conv = tf.layers.conv2d(X, filters=num_filters,
+                                    kernel_size=kernel_size,
+                                    strides=strides,
+                                    padding=padding)
             print('first cnn layer shape : ',conv.shape)
             return conv
 
-    def build_first_capsule_layer(self,conv):
+    def build_capsule_layer(self,conv):
         # First Capsule LAyer:
+        current_layer = self.params.layer_parameters[1]
+        # Parse conv params:
+        num_filters, kernel_size, strides, padding = self.params.get_conv_params(current_layer)
+        # Conv params DEfault:
+        # num_filters = 256
+        # kernel_size = 9
+        # strides  = [2,2]
+        # padding = 'VALID'
+
+        # Parse caps params:
+        caps_num_out, caps_len = self.params.get_caps_params(current_layer)
+
+        #print('CAPS LAYER')
+
+        #print(caps_num_out,caps_len)
+        # Capsule params def:
+        # caps_num_out = 32
+        # caps_len = 8
+
+
         with tf.name_scope('caps'):
-            caps = tf.layers.conv2d(conv, filters=256, kernel_size=9, strides=[2, 2], padding='VALID')
+            caps = tf.layers.conv2d(conv, filters=num_filters,
+                                    kernel_size=kernel_size,
+                                    strides=strides,
+                                    padding=padding)
             print('caps shape: ', caps.shape)
-            caps_size = int(caps.shape[1])
-            u_i = tf.reshape(caps, shape=[-1, 32 * caps_size * caps_size, 8, 1])
-            #u_i = tf.reshape(caps, shape=[-1, 32 * 6 * 6, 8, 1])
-            # caps2 = tf.layers.conv2d(caps1,filters=8,kernel_size=9,strides=[2,2],padding='VALID')
+            caps_size = caps.shape[1].value
+            print('CAPS LAYER : capsize : {} - caps_len : {}'.format(caps_size,caps_len))
+            new_caps_out = int(num_filters * caps_size * caps_size / caps_len)
+
+            u_i = tf.reshape(caps, shape=[self.batch_size, new_caps_out, caps_len , 1])
             u_i = squash(u_i)
-            print('u_i shape: ', u_i.shape)
-            # a_caps1 = squash(caps1)
+            print('u_i shape after squash: ', u_i.shape)
 
             return u_i
 
 
-
-
     def build_digit_caps_layer(self, batch_size, u_i):
-        u_i_size = u_i.shape[1].value
+        previou_num_caps = u_i.shape[1].value
+        previou_num_caps = u_i.shape[1].value
+        previous_caps_len = u_i.shape[2].value
+
+        # DEfault:
+        # previou_num_caps = 1152
+        # previou_num_caps = 8
+
+        # Get parameters caps
+        current_layer = self.params.layer_parameters[2]
+        caps_num_out, caps_len = self.params.get_caps_params(current_layer)
+        # caps_num_out = 10
+        # caps_len = 16
+
+
+
         with tf.variable_scope('final_layer'):
 
-            w_initializer = np.random.normal(size=[1, u_i_size , 10, 8, 16], scale=0.01)
+            w_initializer = np.random.normal(size=[1, previou_num_caps,
+                                                   caps_num_out,
+                                                   previous_caps_len,
+                                                   caps_len],scale=0.01)
+
             W = tf.Variable(w_initializer, dtype=tf.float32)
 
             # repeat W with batch_size times to shape [batch_size, 1152, 8, 16]
@@ -242,7 +295,7 @@ class CapsuleNetwork(object):
             # calc u_ahat
             # [8, 16].T x [8, 1] => [16, 1] => [batch_size, 1152, 16, 1]
             u_i = tf.reshape(u_i, shape=(batch_size, -1, 1, u_i.shape[-2].value, 1))  #  -1 instead of Batch size
-            u_i = tf.tile(u_i, [1, 1, 10, 1, 1])
+            u_i = tf.tile(u_i, [1, 1, caps_num_out, 1, 1])
             print('u_i shape: ', u_i.shape)
             u_hat = tf.matmul(W, u_i, transpose_a=True)
             print('u_hat shape: ', u_hat.shape)
@@ -250,7 +303,7 @@ class CapsuleNetwork(object):
             # Routing:
             with tf.variable_scope('routing'):
                 # Initialize constants:
-                b_IJ = tf.zeros([batch_size, u_i.shape[1].value, 10, 1, 1], dtype=np.float32)
+                b_IJ = tf.zeros([batch_size, previou_num_caps, caps_num_out, 1, 1], dtype=np.float32)
                 print('b_IJ shape: ', b_IJ.shape)
                 v, b_IJ = routing(u_hat, b_IJ, self.num_iter)
                 print('After routing : ')
@@ -330,6 +383,9 @@ class CapsuleNetwork(object):
 
         report_df.to_csv(name)
 
+    def add_params(self,params):
+        self.params = params
+
 
 
 if __name__ == "__main__":
@@ -372,10 +428,10 @@ if __name__ == "__main__":
         print('Testing sample size : ', X_test.shape)
 
     else:
-        #train_file_path = '../../others/CIFAR10-img-classification-tensorflow/cifar-10-batches-py/data_batch_1'
-        #test_file_path = '../../others/CIFAR10-img-classification-tensorflow/cifar-10-batches-py/test_batchs'
-        train_file_path ='../data/cifar/data_batch_1'
-        test_file_path = '../data/cifar/test_batch'
+        train_file_path = '../../others/CIFAR10-img-classification-tensorflow/cifar-10-batches-py/data_batch_1'
+        test_file_path = '../../others/CIFAR10-img-classification-tensorflow/cifar-10-batches-py/test_batchs'
+        #train_file_path ='../data/cifar/data_batch_1'
+        #test_file_path = '../data/cifar/test_batch'
         X_train, y_train = load_image_data(train_file_path)
         X_test, y_test = load_image_data(train_file_path)
 
@@ -392,12 +448,41 @@ if __name__ == "__main__":
     num_outputs = 10
     num_iter = 5
 
-    print('TensorFlow Version: {}'.format(tf.__version__)) 
+    print('TensorFlow Version: {}'.format(tf.__version__))
     print('Default GPU Device: {}'.format(tf.test.gpu_device_name()))
 
-    caps = CapsuleNetwork(batch_size,num_inputs,
-                          num_outputs,num_iter)
 
+    capsule_params= LayerParameters()
+
+    # First conv layer: (num_filters, kernel_size)
+    conv_layer_params = {}
+    conv_layer_params['num_filters'] = 256
+    conv_layer_params['kernel_size'] = 9
+    conv_layer_params['strides'] = [1, 1]
+    conv_layer_params['padding'] = 'VALID'
+    capsule_params.add_params(conv_layer_params)
+
+    # First Capsule Layer:
+    caps_layer_params = {}
+    caps_layer_params['num_filters'] = 256
+    caps_layer_params['kernel_size'] = 9
+    caps_layer_params['strides'] = [2,2]
+    caps_layer_params['padding'] = 'VALID'
+    caps_layer_params['caps_num_out'] = 64
+    caps_layer_params['caps_len'] = 8
+    capsule_params.add_params(caps_layer_params)
+
+    # Digit Capsule Layer:
+    digit_layer_params = {}
+    digit_layer_params['caps_num_out'] = 10
+    digit_layer_params['caps_len'] = 16
+    capsule_params.add_params(digit_layer_params)
+
+
+
+    caps = CapsuleNet(batch_size,num_inputs,
+                          num_outputs,num_iter)
+    caps.add_params(capsule_params)
 
     # Training
     caps.train_model(X_train,y_train,X_test,y_test, num_epochs = 20)
