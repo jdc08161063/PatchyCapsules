@@ -348,7 +348,7 @@ class CapsuleNet(object):
                 v_list.append(tf.reshape(tf.squeeze(self.v)[i][j, :], [1, 16]))
             v_masked = tf.concat(v_list, axis=0)
 
-        decoder_layer = self.params.layer_parameters[2]
+        decoder_layer = self.params.layer_parameters[-1]
         units_first_layer, units_second_layer = decoder_layer['first_layer'],\
                                                 decoder_layer['second_layer']
 
@@ -473,7 +473,7 @@ if __name__ == "__main__":
 
 
         (X_train, y_train), (X_test, y_test) = cifar10.load_data()
-
+        y_train, y_test = y_train.reshape(-1), y_test.reshape(-1)
         X_train,y_train = subsample(X_train, y_train, subsample_ratio)
         X_test, y_test = subsample(X_test, y_test, subsample_ratio)
         print('Training sample size : ', X_train.shape)
