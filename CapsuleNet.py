@@ -10,6 +10,7 @@ import argparse
 import pandas as pd
 from CapsuleParameters import CapsuleParameters
 from datetime import datetime
+from keras.datasets import cifar10
 
 
 
@@ -18,44 +19,9 @@ def reset_graph(seed=42):
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-def squash(vector):
-    '''Squashing function.
-    Args:
-        vector: A 4-D tensor with shape [batch_size, num_caps, vec_len, 1],
-    Returns:
-        A 4-D tensor with the same shape as vector but
-        squashed in 3rd and 4th dimensions.
-    '''
-    vec_abs = tf.sqrt(tf.reduce_sum(tf.square(vector)))  # a scalar
-    scalar_factor = tf.square(vec_abs) / (1 + tf.square(vec_abs))
-    vec_squashed = scalar_factor * tf.divide(vector, vec_abs)  # element-wise
-    return(vec_squashed)
 
-def routing(u_hat, b_IJ, num_iter):
-    # Stopping the routing:
-    u_hat_stopped = tf.stop_gradient(u_hat, name='u_hat_stopped')
-    print('u_hat shape: ',u_hat_stopped.shape)
-    # Routing
-    with tf.name_scope('routing'):
-        for r_iter in range(num_iter):
-            c = tf.nn.softmax(b_IJ,axis=2)
-            #assert c.get_shape().as_list() == [5000,1152,10,1,1]
-            if r_iter == num_iter-1:
-                s_j = tf.reduce_sum(tf.multiply(c,u_hat),axis = 1, keepdims = True)
-                v = squash(s_j)
-            else:
-                s_j = tf.reduce_sum(tf.multiply(c,u_hat_stopped),axis = 1,keepdims=True)
-                v = squash(s_j)
-                #v_tiled = tf.tile(v,[1, 1152,1,1,1])
-                v_tiled = tf.tile(v, [1, u_hat.shape[1].value, 1, 1, 1])
-                a = tf.matmul(u_hat_stopped, v_tiled, transpose_a=True)
-                b_IJ = b_IJ + a
-#         print('c shape: ',c.shape)
-#         print('s_j shape: ',s_j.shape)
-#         print('v shape: ',v.shape)
-#         print('a shape: ',a.shape)
-#         print('b_IJ shape: ',b_IJ.shape)
-    return v,b_IJ
+
+
 
 class CapsuleNet(object):
 
@@ -209,7 +175,6 @@ class CapsuleNet(object):
 
     def evaluate(self, X, y, sess):
         with tf.name_scope('evaluate'):
-
             v_pred = sess.run(self.v,feed_dict={self.X_place:X})
 
 
@@ -280,7 +245,7 @@ class CapsuleNet(object):
             new_caps_out = int(num_filters * caps_size * caps_size / caps_len)
 
             u_i = tf.reshape(caps, shape=[self.batch_size, new_caps_out, caps_len , 1])
-            u_i = squash(u_i)
+            u_i = self.squash(u_i)
             print('u_i shape after squash: ', u_i.shape)
 
             return u_i
@@ -328,7 +293,7 @@ class CapsuleNet(object):
                 # Initialize constants:
                 b_IJ = tf.zeros([batch_size, previou_num_caps, caps_num_out, 1, 1], dtype=np.float32)
                 print('b_IJ shape: ', b_IJ.shape)
-                v, b_IJ = routing(u_hat, b_IJ, self.num_iter)
+                v, b_IJ = self.routing(u_hat, b_IJ, self.num_iter)
                 print('After routing : ')
                 print('v shape: ', v.shape)
                 return v, b_IJ
@@ -383,10 +348,17 @@ class CapsuleNet(object):
                 v_list.append(tf.reshape(tf.squeeze(self.v)[i][j, :], [1, 16]))
             v_masked = tf.concat(v_list, axis=0)
 
+        decoder_layer = self.params.layer_parameters[2]
+        units_first_layer, units_second_layer = decoder_layer['first_layer'],\
+                                                decoder_layer['second_layer']
+
+        # units_first_layer = 512
+        # units_second_layer = 1024
+
         with tf.name_scope('decoder'):
             # 2 FC Relu:
-            dec1 = tf.layers.dense(inputs=v_masked, units=512, activation=tf.nn.relu)
-            dec2 = tf.layers.dense(inputs=dec1, units=1024, activation=tf.nn.relu)
+            dec1 = tf.layers.dense(inputs=v_masked, units=units_first_layer, activation=tf.nn.relu)
+            dec2 = tf.layers.dense(inputs=dec1, units=units_second_layer, activation=tf.nn.relu)
             # 1 FC Sigmoid:
             dec3 = tf.layers.dense(inputs=dec2, units=self.num_inputs, activation=tf.nn.sigmoid)
             #loss_reg = tf.sqrt(tf.reduce_sum(tf.square(tf.reshape(X, [batch_size, num_inputs * num_channels]) - dec3)))
@@ -408,6 +380,46 @@ class CapsuleNet(object):
 
     def add_params(self,params):
         self.params = params
+
+    def squash(self, vector):
+        '''Squashing function.
+        Args:
+            vector: A 4-D tensor with shape [batch_size, num_caps, vec_len, 1],
+        Returns:
+            A 4-D tensor with the same shape as vector but
+            squashed in 3rd and 4th dimensions.
+        '''
+        vec_abs = tf.sqrt(tf.reduce_sum(tf.square(vector)))  # a scalar
+        scalar_factor = tf.square(vec_abs) / (1 + tf.square(vec_abs))
+        vec_squashed = scalar_factor * tf.divide(vector, vec_abs)  # element-wise
+        return (vec_squashed)
+
+
+    def routing(self, u_hat, b_IJ, num_iter):
+        # Stopping the routing:
+        u_hat_stopped = tf.stop_gradient(u_hat, name='u_hat_stopped')
+        print('u_hat shape: ',u_hat_stopped.shape)
+        # Routing
+        with tf.name_scope('routing'):
+            for r_iter in range(num_iter):
+                c = tf.nn.softmax(b_IJ,axis=2)
+                #assert c.get_shape().as_list() == [5000,1152,10,1,1]
+                if r_iter == num_iter-1:
+                    s_j = tf.reduce_sum(tf.multiply(c,u_hat),axis = 1, keepdims = True)
+                    v = self.squash(s_j)
+                else:
+                    s_j = tf.reduce_sum(tf.multiply(c,u_hat_stopped),axis = 1,keepdims=True)
+                    v = self.squash(s_j)
+                    #v_tiled = tf.tile(v,[1, 1152,1,1,1])
+                    v_tiled = tf.tile(v, [1, u_hat.shape[1].value, 1, 1, 1])
+                    a = tf.matmul(u_hat_stopped, v_tiled, transpose_a=True)
+                    b_IJ = b_IJ + a
+    #         print('c shape: ',c.shape)
+    #         print('s_j shape: ',s_j.shape)
+    #         print('v shape: ',v.shape)
+    #         print('a shape: ',a.shape)
+    #         print('b_IJ shape: ',b_IJ.shape)
+        return v,b_IJ
 
 
 
@@ -453,10 +465,14 @@ if __name__ == "__main__":
     else:
         #train_file_path = '../../others/CIFAR10-img-classification-tensorflow/cifar-10-batches-py/data_batch_1'
         #test_file_path = '../../others/CIFAR10-img-classification-tensorflow/cifar-10-batches-py/test_batchs'
-        train_file_path ='../data/cifar/data_batch_1'
-        test_file_path = '../data/cifar/test_batch'
-        X_train, y_train = load_image_data(train_file_path)
-        X_test, y_test = load_image_data(train_file_path)
+        #train_file_path ='../data/cifar/data_batch_1'
+        #test_file_path = '../data/cifar/test_batch'
+        #X_train, y_train = load_image_data(train_file_path)
+        #X_test, y_test = load_image_data(train_file_path)
+
+
+
+        (X_train, y_train), (X_test, y_test) = cifar10.load_data()
 
         X_train,y_train = subsample(X_train, y_train, subsample_ratio)
         X_test, y_test = subsample(X_test, y_test, subsample_ratio)
@@ -501,6 +517,13 @@ if __name__ == "__main__":
     digit_layer_params['caps_len'] = 16
     capsule_params.add_params(digit_layer_params)
 
+
+    # Capsule Decoder:
+    decoder_params = {}
+    decoder_params['first_layer'] = 328
+    decoder_params['second_layer'] = 192
+
+    capsule_params.add_params(decoder_params)
 
 
     caps = CapsuleNet(batch_size,num_inputs,

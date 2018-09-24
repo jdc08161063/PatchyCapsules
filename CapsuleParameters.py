@@ -62,5 +62,10 @@ if __name__=='__main__':
 
     capsule_params.add_params(digit_layer_params)
 
+    # Capsule Decoder:
+    decoder_params = {}
+    decoder_params['first_layer'] = 512
+    decoder_params['second_layer'] = 1024
 
+    capsule_params.add_params(decoder_params)
 
