@@ -1,35 +1,22 @@
+# coding: utf-8
 """
-Keras implementation of CapsNet in Hinton's paper Dynamic Routing Between Capsules.
-The current version maybe only works for TensorFlow backend. Actually it will be straightforward to re-write to TF code.
-Adopting to other backends should be easy, but I have not tested this. 
-
-Usage:
-       python capsulenet.py
-       python capsulenet.py --epochs 50
-       python capsulenet.py --epochs 50 --routings 3
-       ... ...
-       
-Result:
-    Validation accuracy > 99.5% after 20 epochs. Converge to 99.66% after 50 epochs.
-    About 110 seconds per epoch on a single GTX1070 GPU card
-    
-Author: Xifeng Guo, E-mail: `guoxifeng1990@163.com`, Github: `https://github.com/XifengGuo/CapsNet-Keras`
+Implementation of Capsule Networks:
 """
 
 import numpy as np
 from keras import layers, models, optimizers
 from keras import backend as K
 from keras.utils import to_categorical
-#import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
 from utils import combine_images
 from PIL import Image
 from capsulelayers import CapsuleLayer, PrimaryCap, Length, Mask
-
+import pandas as pd
 K.set_image_data_format('channels_last')
-
+import sys
+sys.path.append('./PatchyTools/')
+from GraphConverter import GraphConverter
+from DropboxLoader import DropboxLoader
+from sklearn.model_selection import train_test_split
 
 def CapsNet(input_shape, n_class, routings):
     """
@@ -43,10 +30,10 @@ def CapsNet(input_shape, n_class, routings):
     x = layers.Input(shape=input_shape)
 
     # Layer 1: Just a conventional Conv2D layer
-    conv1 = layers.Conv2D(filters=256, kernel_size=9, strides=1, padding='valid', activation='relu', name='conv1')(x)
+    conv1 = layers.Conv2D(filters=128, kernel_size=9, strides=1, padding='valid', activation='relu', name='conv1')(x)
 
     # Layer 2: Conv2D layer with `squash` activation, then reshape to [None, num_capsule, dim_capsule]
-    primarycaps = PrimaryCap(conv1, dim_capsule=8, n_channels=32, kernel_size=9, strides=2, padding='valid')
+    primarycaps = PrimaryCap(conv1, dim_capsule=8, n_channels=32, kernel_size=2, strides=2, padding='valid')
 
     # Layer 3: Capsule layer. Routing algorithm works here.
     digitcaps = CapsuleLayer(num_capsule=n_class, dim_capsule=16, routings=routings,
@@ -63,8 +50,8 @@ def CapsNet(input_shape, n_class, routings):
 
     # Shared Decoder model in training and prediction
     decoder = models.Sequential(name='decoder')
-    decoder.add(layers.Dense(512, activation='relu', input_dim=16*n_class))
-    decoder.add(layers.Dense(1024, activation='relu'))
+    decoder.add(layers.Dense(128, activation='relu', input_dim=16 * n_class))
+    decoder.add(layers.Dense(256, activation='relu'))
     decoder.add(layers.Dense(np.prod(input_shape), activation='sigmoid'))
     decoder.add(layers.Reshape(target_shape=input_shape, name='out_recon'))
 
@@ -104,6 +91,8 @@ def train(model, data, args):
     # unpacking the data
     (x_train, y_train), (x_test, y_test) = data
 
+
+
     # callbacks
     log = callbacks.CSVLogger(args.save_dir + '/log.csv')
     tb = callbacks.TensorBoard(log_dir=args.save_dir + '/tensorboard-logs',
@@ -118,11 +107,11 @@ def train(model, data, args):
                   loss_weights=[1., args.lam_recon],
                   metrics={'capsnet': 'accuracy'})
 
-    """
+
     # Training without data augmentation:
-    model.fit([x_train, y_train], [y_train, x_train], batch_size=args.batch_size, epochs=args.epochs,
-              validation_data=[[x_test, y_test], [y_test, x_test]], callbacks=[log, tb, checkpoint, lr_decay])
-    """
+    # model.fit([x_train, y_train], [y_train, x_train], batch_size=args.batch_size, epochs=args.epochs,
+    #           validation_data=[[x_test, y_test], [y_test, x_test]], callbacks=[log, tb, checkpoint, lr_decay])
+
 
     # Begin: Training with data augmentation ---------------------------------------------------------------------#
     def train_generator(x, y, batch_size, shift_fraction=0.):
@@ -153,10 +142,10 @@ def train(model, data, args):
 def test(model, data, args):
     x_test, y_test = data
     y_pred, x_recon = model.predict(x_test, batch_size=100)
-    print('-'*30 + 'Begin: test' + '-'*30)
-    print('Test acc:', np.sum(np.argmax(y_pred, 1) == np.argmax(y_test, 1))/y_test.shape[0])
+    print('-' * 30 + 'Begin: test' + '-' * 30)
+    print('Test acc:', np.sum(np.argmax(y_pred, 1) == np.argmax(y_test, 1)) / y_test.shape[0])
 
-    img = combine_images(np.concatenate([x_test[:50],x_recon[:50]]))
+    img = combine_images(np.concatenate([x_test[:50], x_recon[:50]]))
     image = img * 255
     Image.fromarray(image.astype(np.uint8)).save(args.save_dir + "/real_and_recon.png")
     print()
@@ -167,7 +156,7 @@ def test(model, data, args):
 
 
 def manipulate_latent(model, data, args):
-    print('-'*30 + 'Begin: manipulate' + '-'*30)
+    print('-' * 30 + 'Begin: manipulate' + '-' * 30)
     x_test, y_test = data
     index = np.argmax(y_test, 1) == args.digit
     number = np.random.randint(low=0, high=sum(index) - 1)
@@ -178,14 +167,14 @@ def manipulate_latent(model, data, args):
     for dim in range(16):
         for r in [-0.25, -0.2, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2, 0.25]:
             tmp = np.copy(noise)
-            tmp[:,:,dim] = r
+            tmp[:, :, dim] = r
             x_recon = model.predict([x, y, tmp])
             x_recons.append(x_recon)
 
     x_recons = np.concatenate(x_recons)
 
     img = combine_images(x_recons, height=16)
-    image = img*255
+    image = img * 255
     Image.fromarray(image.astype(np.uint8)).save(args.save_dir + '/manipulate-%d.png' % args.digit)
     print('manipulated result saved to %s/manipulate-%d.png' % (args.save_dir, args.digit))
     print('-' * 30 + 'End: manipulate' + '-' * 30)
@@ -202,6 +191,7 @@ def load_mnist():
     y_test = to_categorical(y_test.astype('float32'))
     return (x_train, y_train), (x_test, y_test)
 
+
 def load_cifar():
     # the data, shuffled and split between train and test sets
     from keras.datasets import cifar10
@@ -214,7 +204,6 @@ def load_cifar():
     return (x_train, y_train), (x_test, y_test)
 
 
-
 if __name__ == "__main__":
     import os
     import argparse
@@ -223,15 +212,15 @@ if __name__ == "__main__":
 
     # setting the hyper parameters
     parser = argparse.ArgumentParser(description="Capsule Network on MNIST.")
-    parser.add_argument('--epochs', default=50, type=int)
+    parser.add_argument('--epochs', default=100, type=int)
     parser.add_argument('--batch_size', default=100, type=int)
     parser.add_argument('--lr', default=0.001, type=float,
                         help="Initial learning rate")
-    parser.add_argument('--lr_decay', default=0.9, type=float,
+    parser.add_argument('--lr_decay', default=1, type=float,
                         help="The value multiplied by lr at each epoch. Set a larger value for larger epochs")
-    parser.add_argument('--lam_recon', default=0.392, type=float,
+    parser.add_argument('--lam_recon', default=0.6, type=float,
                         help="The coefficient for the loss of decoder")
-    parser.add_argument('-r', '--routings', default=3, type=int,
+    parser.add_argument('-r', '--routings', default=5, type=int,
                         help="Number of iterations used in routing algorithm. should > 0")
     parser.add_argument('--shift_fraction', default=0.1, type=float,
                         help="Fraction of pixels to shift at most in each direction.")
@@ -251,13 +240,29 @@ if __name__ == "__main__":
         os.makedirs(args.save_dir)
 
     # load data
-    #(x_train, y_train), (x_test, y_test) = load_cifar()#load_mnist()
-    (x_train, y_train), (x_test, y_test) = load_mnist()
+    #(x_train, y_train), (x_test, y_test) = load_cifar()  # load_mnist()
+    # Getting the training data:
+    dataset_name = 'DD'
+    width = 18
+    receptive_field = 10
+    PatchyConverter = GraphConverter(dataset_name, width, receptive_field)
+    mutag_tensor = PatchyConverter.graphs_to_Patchy_tensor()
+    # plt.imshow(mutag_tensor[0,:,:,2])
 
+    # Getting the labels:
+    dropbox_loader = DropboxLoader(dataset_name)
+    mutag_labels = dropbox_loader.get_graph_label()
+    mutag_labels = np.array(mutag_labels.graph_label)
 
+    x_train, x_test, y_train, y_test = train_test_split(mutag_tensor,
+                                                        mutag_labels,
+                                                        test_size=0.10)#,
+                                                        #random_state=42)
+    y_train= pd.get_dummies(y_train).values
+    y_test = pd.get_dummies(y_test).values
 
     # define model
-    model, eval_model, manipulate_model = CapsNet(input_shape=x_train.shape[1:],
+    model, eval_model, manipulate_model = CapsNet(input_shape=mutag_tensor.shape[1:],
                                                   n_class=len(np.unique(np.argmax(y_train, 1))),
                                                   routings=args.routings)
     model.summary()

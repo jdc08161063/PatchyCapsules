@@ -1,3 +1,6 @@
+__pycache__/*
+result/
+test_mutag.npy
 .ipynb_checkpoints/* 
 PatchyTools/.ipynb_checkpoints/*
 PatchyTools/__pycache__/Patchy_san.cpython-36.pyc

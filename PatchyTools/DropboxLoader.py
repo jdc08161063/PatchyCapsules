@@ -45,6 +45,7 @@ class DropboxLoader(object):
         df_node_label.columns =['label']
         df_node_label['node'] = df_node_label.index.values
         return df_node_label
+
     
     def get_edge_label(self):
         edge_label = os.path.join(self.DropboxDataRoot,self.edge_label_filename)
@@ -52,6 +53,13 @@ class DropboxLoader(object):
         df_edge_label.columns =['edge_label']
         df_edge_label['edge_id'] = df_edge_label.index.values
         return df_edge_label
+
+    def get_graph_label(self):
+        graph_ind_path = os.path.join(self.DropboxDataRoot, self.graph_label_filename)
+        df_graph_ind = pd.read_csv(graph_ind_path, delimiter=' ',header=None)
+        df_graph_ind.columns =['graph_label']
+        #df_graph_ind['node'] = df_graph_ind.index.values
+        return df_graph_ind
 
     def get_graph_ind(self):
         graph_ind_path = os.path.join(self.DropboxDataRoot, self.graph_ind_filename)

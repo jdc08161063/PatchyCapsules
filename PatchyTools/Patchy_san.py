@@ -1,11 +1,4 @@
-
-
 # coding: utf-8
-import json
-#import pydevd
-#pydevd.settrace('localhost', port=49309, stdoutToServer=True, stderrToServer=True)
-import tensorflow as tf
-import pickle
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -13,7 +6,6 @@ from collections import OrderedDict, defaultdict
 from six.moves import xrange
 import pynauty
 import time
-import tensorflow as tf
 import networkx as nx
 import numpy as np
 import pynauty as nauty
@@ -21,9 +13,57 @@ from multiprocessing import Pool
 import matplotlib.pyplot as plt
 from scipy.sparse import coo_matrix
 import os
+#from DropboxLoader import DropboxLoader
+
+DATA_PATH = '~/.gamma_link/'
+DROPBOX_DATA_ROOT = str(DATA_PATH) + 'Samples/'
 
 
-from . import Dataset, utils
+class Dropbox(object):
+    '''
+    Node id is made to start from 0 due to nauty package requirement, even if it starts from 1 in the original file
+    '''
+
+    def __init__(self, datasetname):
+        self.node_label_filename = '{0}/{0}_node_labels.txt'.format(datasetname)
+        self.edge_label_filename = '{0}/{0}_edge_labels.txt'.format(datasetname)
+        self.adj_filename = '{0}/{0}_A.txt'.format(datasetname)
+        self.graph_ind_filename = '{0}/{0}_graph_indicator.txt'.format(datasetname)
+        self.graph_label_filename = '{0}/{0}_graph_labels.txt'.format(datasetname)
+
+    def get_node_label(self):
+        df_node_label = pd.read_csv(os.path.join(DROPBOX_DATA_ROOT, self.node_label_filename), delimiter=' ', header=None)
+        df_node_label.columns = ['label']
+        df_node_label['node'] = df_node_label.index.values
+        return df_node_label
+
+    def get_edge_label(self):
+        df_edge_label = pd.read_csv(os.path.join(DROPBOX_DATA_ROOT, self.edge_label_filename), delimiter=' ', header=None)
+        df_edge_label.columns = ['edge_label']
+        df_edge_label['edge_id'] = df_edge_label.index.values
+        return df_edge_label
+
+    def get_graph_ind(self):
+        df_graph_ind = pd.read_csv(os.path.join(DROPBOX_DATA_ROOT, self.graph_ind_filename), delimiter=' ', header=None)
+        df_graph_ind.columns = ['graph_ind']
+        df_graph_ind['node'] = df_graph_ind.index.values
+        return df_graph_ind
+
+    def get_graph_label(self):
+        df_graph_ind = pd.read_csv(os.path.join(DROPBOX_DATA_ROOT, self.graph_label_filename), delimiter=' ', header=None)
+        df_graph_ind.columns = ['graph_label']
+        df_graph_ind['node'] = df_graph_ind.index.values
+        return df_graph_ind
+
+    def get_adj(self):
+        df_adj = pd.read_csv(os.path.join(DROPBOX_DATA_ROOT, self.adj_filename), delimiter=',', header=None)
+        df_adj.columns = ['from', 'to']
+        df_adj['from'] = df_adj['from'].values - 1
+        df_adj['to'] = df_adj['to'].values - 1
+        return df_adj
+
+
+#from utils import dfadj_to_dict
 
 # ### Load data
 '''
@@ -31,7 +71,17 @@ from . import Dataset, utils
 #Graph id is starting from 1
 '''
 
-
+def dfadj_to_dict(df_adj):
+    '''
+    input: edges and labels
+    output: dictionary. key is node_id and value is list of nodes which the node_id connects to with edges.
+    '''
+    unique_nodes = np.unique( df_adj['from'].unique().tolist() + df_adj['to'].unique().tolist())
+    graph =defaultdict(list)
+    for key in unique_nodes:
+        graph[key] += df_adj.loc[df_adj['from']==key]['to'].values.tolist()
+        graph[key] += df_adj.loc[df_adj['to']==key]['from'].values.tolist()
+    return graph
 
 # ### Functions
 
@@ -48,7 +98,8 @@ def get_smallest_node_id_from_adj(df_adj):
 def create_adj_dict_by_graphId(df_adj, df_node_label):
     '''
     input: df_node_label
-    return: {1: {0:[0,2,5]}} = {graphId: {nodeId:[node,node,node]}}
+    ##return: {1: {0:[0,2,5]}} = {graphId: {nodeId:[node,node,node]}}
+    output: graphID and the adj matrix corresponding to that graph
     '''
     adj_dict_by_graphId ={}
     unique_graph_labels = df_node_label.graph_ind.unique()
@@ -66,7 +117,8 @@ def canonical_labeling(adj_dict_by_graphId, df_node_label, df_adj):
     for l in unique_graph_labels:
         df_subset_adj = adj_dict_by_graphId[l]
         df_subset_nodes = df_node_label[df_node_label.graph_ind==l]
-        temp_graph_dict = utils.dfadj_to_dict(df_subset_adj)
+        #temp_graph_dict = utils.dfadj_to_dict(df_subset_adj)
+        temp_graph_dict = dfadj_to_dict(df_subset_adj)
         nauty_graph = nauty.Graph(len(temp_graph_dict), adjacency_dict=temp_graph_dict)
         canonical_labeling = nauty.canonical_labeling(nauty_graph)
         canonical_labeling = [df_subset_nodes.label.values[i] for i in canonical_labeling] ###
@@ -195,13 +247,13 @@ def tensor(neighborhoods, WIDTH_W, RECEPTIVE_FIELD_SIZE_K, df_node_label):
 
 
 def main(WIDTH_W, RECEPTIVE_FIELD_SIZE_K, datasetname='MUTAG'):
-    mutag = Dataset.Dropbox(datasetname)
+    mutag = Dropbox(datasetname)
+    #mutag = DropboxLoader(datasetname)
 
     #df_edge_label = mutag.get_edge_label()
     df_adj = mutag.get_adj()
     df_node_label = mutag.get_node_label()
-
-    df_node_label = pd.concat([df_node_label, mutag.get_graph_ind().graph_ind], axis=1)
+    df_node_label = pd.concat([df_node_label, mutag.get_graph_ind()['graph_ind']], axis=1)
 
 
     adj_dict_by_graphId = create_adj_dict_by_graphId(df_adj, df_node_label)
