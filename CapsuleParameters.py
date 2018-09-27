@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-
 import os
-
 
 class CapsuleParameters(object):
     def __init__(self):

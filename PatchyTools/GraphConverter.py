@@ -1,9 +1,7 @@
 # coding: utf-8
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 from collections import OrderedDict, defaultdict
-from six.moves import xrange
 import pynauty
 import time
 import networkx as nx
