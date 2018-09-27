@@ -24,9 +24,6 @@ DIR_PATH = os.environ['GAMMA_DATA_ROOT']+'Samples/'
 
 
 
-
-
-
 def get_subset_adj(df_adj, df_node_label,graph_label_num):
     df_glabel = df_node_label[df_node_label.graph_ind == graph_label_num ]
     index_of_glabel = (df_adj['to'].isin(df_glabel.node) & df_adj['from'].isin(df_glabel.node))

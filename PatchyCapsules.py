@@ -212,7 +212,7 @@ if __name__ == "__main__":
 
     # setting the hyper parameters
     parser = argparse.ArgumentParser(description="Capsule Network on MNIST.")
-    parser.add_argument('--epochs', default=100, type=int)
+    parser.add_argument('--epochs', default=10, type=int)
     parser.add_argument('--batch_size', default=100, type=int)
     parser.add_argument('--lr', default=0.001, type=float,
                         help="Initial learning rate")
@@ -242,7 +242,7 @@ if __name__ == "__main__":
     # load data
     #(x_train, y_train), (x_test, y_test) = load_cifar()  # load_mnist()
     # Getting the training data:
-    dataset_name = 'DD'
+    dataset_name = 'MUTAG'
     width = 18
     receptive_field = 10
     PatchyConverter = GraphConverter(dataset_name, width, receptive_field)
@@ -271,9 +271,11 @@ if __name__ == "__main__":
     if args.weights is not None:  # init the model weights with provided one
         model.load_weights(args.weights)
     if not args.testing:
+        print('training')
         train(model=model, data=((x_train, y_train), (x_test, y_test)), args=args)
     else:  # as long as weights are given, will run testing
         if args.weights is None:
             print('No weights are provided. Will test using random initialized weights.')
+        print('Manipulate and test : ?!?!?')
         manipulate_latent(manipulate_model, (x_test, y_test), args)
         test(model=eval_model, data=(x_test, y_test), args=args)

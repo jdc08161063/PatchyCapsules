@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+plt.style.use('ggplot')
 import csv
 import math
 import pandas
@@ -26,9 +27,9 @@ def plot_log(filename, show=True):
     plt.legend()
     plt.title('Training and validation accuracy')
 
-    # fig.savefig('result/log.png')
-    if show:
-        plt.show()
+    fig.savefig('result/log.png')
+    # if show:
+    #     plt.show()
 
 
 def combine_images(generated_images, height=None, width=None):
