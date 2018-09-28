@@ -225,6 +225,7 @@ class GraphClassifier(object):
         self.results['time'] = self.training_time
 
 
+
         #return self.train_model
 
 
@@ -314,9 +315,9 @@ if __name__ == "__main__":
 
     # Generate list of parameter sets::
     list_parameter_sets = []
-    n_epoch_list = [100, 150, 200]
-    lr_list = [0.0005, 0.001, 0.005]
-    lr_decay_list = [0.25,0.4, 0.75, 1.5]
+    n_epoch_list = [100]#, 150, 200]
+    lr_list = [0.0005]#, 0.001, 0.005]
+    lr_decay_list = [0.25,0.4]#, 0.75, 1.5]
     for n_epoch in n_epoch_list:
         for lr in lr_list:
             for lr_decay in lr_decay_list:
@@ -338,11 +339,11 @@ if __name__ == "__main__":
         patchy_classifier.train(data, parameter_set)
 
         if i == 0:
-            results_df = patchy_classifier.results
+            results_df = pd.DataFrame(patchy_classifier.results)
         else:
             results_df = pd.concat([results_df, patchy_classifier.results],1)
 
-        print('Parameter {} trained '.format(i+1))
+        print('Set of parameters {} trained '.format(i+1))
 
 
     # Saving results:

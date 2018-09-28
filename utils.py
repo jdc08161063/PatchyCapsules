@@ -33,7 +33,7 @@ def plot_log(filename, show=True):
 
 
 def get_accuracy_results(filename, show=True):
-    df = pandas.read_csv(filename)
+    df = pandas.read_csv(filename,index_col=0)
     results = df.iloc[-1, :]#.val_capsnet_acc
     return results
 
