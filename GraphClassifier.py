@@ -29,7 +29,7 @@ from DropboxLoader import DropboxLoader
 from CapsuleParameters import CapsuleParameters
 from CapsuleParameters import CapsuleTrainingParameters
 
-DIR_PATH = os.environ['GAMMA_DATA_ROOT'] + 'Samples/'
+DIR_PATH = os.environ['GAMMA_DATA_ROOT']
 
 class GraphClassifier(object):
     def __init__(self,input_shape, n_class=2, routings=3):
@@ -215,7 +215,7 @@ class GraphClassifier(object):
 
         # Save the results:
         if args.plot_log == True:
-            plot_log(self.file_to_save, show=True)
+            plot_log(self.log_file, show=True)
         self.training_time = time() - start
         self.results = get_accuracy_results(self.log_file)
         self.results['time'] = self.training_time
@@ -310,14 +310,14 @@ if __name__ == "__main__":
 
     # Generate list of parameter sets::
     list_parameter_sets = []
-    n_epoch_list = [50]#, 100, 150]
-    lr_list = [0.0005]#, 0.001, 0.005]
-    lr_decay_list = [0.25,0.4]#, 0.4, 0.75, 1.5]
+    n_epoch_list = [100, 150, 200]
+    lr_list = [0.0005, 0.001, 0.005]
+    lr_decay_list = [0.25,0.4, 0.75, 1.5]
     for n_epoch in n_epoch_list:
         for lr in lr_list:
             for lr_decay in lr_decay_list:
-                capsule_params = CapsuleTrainingParameters(epochs=n_epoch, lr=lr, lr_decay=lr_decay)
-                list_parameter_sets.append(capsule_params)
+                training_params = CapsuleTrainingParameters(epochs=n_epoch, lr=lr, lr_decay=lr_decay)
+                list_parameter_sets.append(training_params)
 
 
     #num_params_list = len(list_parameter_sets)
@@ -326,22 +326,25 @@ if __name__ == "__main__":
                                                        lr_decay=lr_decay,
                                                        plot_log=True)
 
+    print('Training in {} parameter sets'.format(len(list_parameter_sets)))
     for i,parameter_set in enumerate(list_parameter_sets):
 
         patchy_classifier = GraphClassifier(input_shape)
         patchy_classifier.build_the_graph(capsule_params)
-        patchy_classifier.train(data, args)
+        patchy_classifier.train(data, parameter_set)
 
         if i == 0:
             results_df = patchy_classifier.results
         else:
-            results_df = pd.concat(results_df,patchy_classifier.results,1)
+            results_df = pd.concat([results_df, patchy_classifier.results],1)
+
+        print('Parameter {} trained '.format(i+1))
 
 
     # Saving results:
     time_now = datetime.now()
     time_now = '_'.join([str(time_now.date()).replace('-', '_'), str(time_now.hour), str(time_now.minute)])
 
-    results_path = DIR_PATH + 'Results/results_hp_search_{}'.format(time_now)
+    results_path = DIR_PATH + 'Results/CapsuleSans/results_hp_search_{}.csv'.format(time_now)
     results_df.to_csv(results_path)
 
