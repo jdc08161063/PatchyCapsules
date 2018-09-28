@@ -197,8 +197,12 @@ class GraphClassifier(object):
         # Training without data augmentation:
         #print('shape validation : ', np.array([[self.x_test, self.y_test], [self.y_test, self.x_test]]).shape)
         if args.data_augmentation == False:
-            self.train_model.fit([self.x_train, self.y_train], [self.y_train, self.x_train], batch_size=args.batch_size, epochs=args.epochs,
-                   validation_data=[[self.x_test, self.y_test], [self.y_test, self.x_test]], callbacks=[log, tb, checkpoint, lr_decay])
+            self.train_model.fit([self.x_train, self.y_train], [self.y_train, self.x_train],
+                                 batch_size=args.batch_size,
+                                 epochs=args.epochs,
+                                 validation_data=[[self.x_test, self.y_test],[self.y_test, self.x_test]],
+                                 callbacks=[log, tb, checkpoint, lr_decay],
+                                 verbose=0)
             #print('Evaluation: ',self.train_model.predict([[self.x_test, self.y_test], [self.y_test, self.x_test]]))
         else:
             # Begin: Training with data augmentation ---------------------------------------------------------------------#
