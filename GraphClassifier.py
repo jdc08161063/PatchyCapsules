@@ -321,7 +321,10 @@ if __name__ == "__main__":
 
 
     #num_params_list = len(list_parameter_sets)
-    list_parameter_sets[-1]=
+    list_parameter_sets[-1]= CapsuleTrainingParameters(epochs=n_epoch,
+                                                       lr=lr,
+                                                       lr_decay=lr_decay,
+                                                       plot_log=True)
 
     for i,parameter_set in enumerate(list_parameter_sets):
 
