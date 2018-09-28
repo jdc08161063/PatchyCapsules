@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from time import time
+from datetime import datetime
 from PIL import Image
 
 from keras import layers, models, optimizers
@@ -18,8 +19,8 @@ from keras.utils import to_categorical
 from keras.preprocessing.image import ImageDataGenerator
 from keras import callbacks
 
-from utils import combine_images
 from utils import plot_log
+from utils import get_accuracy_results
 
 from capsulelayers import CapsuleLayer, PrimaryCap, Length, Mask
 sys.path.append('./PatchyTools/')
@@ -28,7 +29,7 @@ from DropboxLoader import DropboxLoader
 from CapsuleParameters import CapsuleParameters
 from CapsuleParameters import CapsuleTrainingParameters
 
-
+DIR_PATH = os.environ['GAMMA_DATA_ROOT'] + 'Samples/'
 
 class GraphClassifier(object):
     def __init__(self,input_shape, n_class=2, routings=3):
@@ -36,7 +37,6 @@ class GraphClassifier(object):
         self.input_shape = input_shape
         self.n_class = n_class
         self.routings = routings
-
 
 
 
@@ -171,16 +171,16 @@ class GraphClassifier(object):
         :param args: arguments
         :return: The trained model
         """
-        # unpacking the data
-        # (x_train, y_train), (x_test, y_test) = data
-
         self.import_data(data)
 
         # if not hasattr(self, 'train_model'):
         #     self.build_the_graph()
-
+        # time:
+        start = time()
         # callbacks
-        log = callbacks.CSVLogger(args.save_dir + '/log.csv')
+        self.log_file = args.save_dir + '/log.csv'
+
+        log = callbacks.CSVLogger(self.log_file)
         tb = callbacks.TensorBoard(log_dir=args.save_dir + '/tensorboard-logs',
                                    batch_size=args.batch_size, histogram_freq=int(args.debug))
         checkpoint = callbacks.ModelCheckpoint(args.save_dir + '/weights-{epoch:02d}.h5', monitor='val_capsnet_acc',
@@ -199,6 +199,7 @@ class GraphClassifier(object):
         if args.data_augmentation == False:
             self.train_model.fit([self.x_train, self.y_train], [self.y_train, self.x_train], batch_size=args.batch_size, epochs=args.epochs,
                    validation_data=[[self.x_test, self.y_test], [self.y_test, self.x_test]], callbacks=[log, tb, checkpoint, lr_decay])
+            #print('Evaluation: ',self.train_model.predict([[self.x_test, self.y_test], [self.y_test, self.x_test]]))
         else:
             # Begin: Training with data augmentation ---------------------------------------------------------------------#
             # Training with data augmentation. If shift_fraction=0., also no augmentation.
@@ -211,52 +212,16 @@ class GraphClassifier(object):
             self.train_model.save_weights(args.save_dir + '/trained_model.h5')
         print('Trained model saved to \'%s/trained_model.h5\'' % args.save_dir)
 
+
         # Save the results:
-        plot_log(args.save_dir + '/log.csv', show=True)
+        if args.plot_log == True:
+            plot_log(self.file_to_save, show=True)
+        self.training_time = time() - start
+        self.results = get_accuracy_results(self.log_file)
+        self.results['time'] = self.training_time
+
 
         #return self.train_model
-
-
-def test(model, data, args):
-    x_test, y_test = data
-    y_pred, x_recon = model.predict(x_test, batch_size=100)
-    print('-' * 30 + 'Begin: test' + '-' * 30)
-    print('Test acc:', np.sum(np.argmax(y_pred, 1) == np.argmax(y_test, 1)) / y_test.shape[0])
-
-    img = combine_images(np.concatenate([x_test[:50], x_recon[:50]]))
-    image = img * 255
-    Image.fromarray(image.astype(np.uint8)).save(args.save_dir + "/real_and_recon.png")
-    print()
-    print('Reconstructed images are saved to %s/real_and_recon.png' % args.save_dir)
-    print('-' * 30 + 'End: test' + '-' * 30)
-    plt.imshow(plt.imread(args.save_dir + "/real_and_recon.png"))
-    plt.show()
-
-
-def manipulate_latent(model, data, args):
-    print('-' * 30 + 'Begin: manipulate' + '-' * 30)
-    x_test, y_test = data
-    index = np.argmax(y_test, 1) == args.digit
-    number = np.random.randint(low=0, high=sum(index) - 1)
-    x, y = x_test[index][number], y_test[index][number]
-    x, y = np.expand_dims(x, 0), np.expand_dims(y, 0)
-    noise = np.zeros([1, 10, 16])
-    x_recons = []
-    for dim in range(16):
-        for r in [-0.25, -0.2, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2, 0.25]:
-            tmp = np.copy(noise)
-            tmp[:, :, dim] = r
-            x_recon = model.predict([x, y, tmp])
-            x_recons.append(x_recon)
-
-    x_recons = np.concatenate(x_recons)
-
-    img = combine_images(x_recons, height=16)
-    image = img * 255
-    Image.fromarray(image.astype(np.uint8)).save(args.save_dir + '/manipulate-%d.png' % args.digit)
-    print('manipulated result saved to %s/manipulate-%d.png' % (args.save_dir, args.digit))
-    print('-' * 30 + 'End: manipulate' + '-' * 30)
-
 
 
 if __name__ == "__main__":
@@ -274,7 +239,7 @@ if __name__ == "__main__":
     # Getting the training data:
 
 
-    dataset_name = 'DD'
+    dataset_name = 'MUTAG'
     width = 18
     receptive_field = 10
     PatchyConverter = GraphConverter(dataset_name, width, receptive_field)
@@ -343,10 +308,37 @@ if __name__ == "__main__":
 
     capsule_params.add_params(decoder_params,decoder_layer)
 
+    # Generate list of parameter sets::
+    list_parameter_sets = []
+    n_epoch_list = [50]#, 100, 150]
+    lr_list = [0.0005]#, 0.001, 0.005]
+    lr_decay_list = [0.25,0.4]#, 0.4, 0.75, 1.5]
+    for n_epoch in n_epoch_list:
+        for lr in lr_list:
+            for lr_decay in lr_decay_list:
+                capsule_params = CapsuleTrainingParameters(epochs=n_epoch, lr=lr, lr_decay=lr_decay)
+                list_parameter_sets.append(capsule_params)
 
-    #args.data_augmentation = True
-    patchy_classifier = GraphClassifier(input_shape)
-    patchy_classifier.build_the_graph(capsule_params)
-    patchy_classifier.train(data, args)
 
+    #num_params_list = len(list_parameter_sets)
+    list_parameter_sets[-1]=
+
+    for i,parameter_set in enumerate(list_parameter_sets):
+
+        patchy_classifier = GraphClassifier(input_shape)
+        patchy_classifier.build_the_graph(capsule_params)
+        patchy_classifier.train(data, args)
+
+        if i == 0:
+            results_df = patchy_classifier.results
+        else:
+            results_df = pd.concat(results_df,patchy_classifier.results,1)
+
+
+    # Saving results:
+    time_now = datetime.now()
+    time_now = '_'.join([str(time_now.date()).replace('-', '_'), str(time_now.hour), str(time_now.minute)])
+
+    results_path = DIR_PATH + 'Results/results_hp_search_{}'.format(time_now)
+    results_df.to_csv(results_path)
 

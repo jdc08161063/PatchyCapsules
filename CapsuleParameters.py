@@ -34,7 +34,8 @@ class CapsuleTrainingParameters(object):
                  data_augmentation=False,
                  testing=False,
                  digit=5,
-                 weights=None):
+                 weights=None,
+                 plot_log=False):
         self.epochs = epochs
         self.batch_size = batch_size
         self.lr = lr
@@ -50,6 +51,7 @@ class CapsuleTrainingParameters(object):
         self.testing = testing
         self.digit = digit
         self.weights = weights
+        self.plot_log = plot_log
 
 
 if __name__ == '__main__':

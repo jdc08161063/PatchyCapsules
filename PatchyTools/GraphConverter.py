@@ -2,11 +2,13 @@
 import numpy as np
 import pandas as pd
 from collections import OrderedDict, defaultdict
-import pynauty
 import time
 import networkx as nx
 import numpy as np
-import pynauty as nauty
+try:
+    import pynauty as nauty
+except:
+    print('Pynauty is not installed')
 from scipy.sparse import coo_matrix
 import os
 from collections import OrderedDict, defaultdict

@@ -32,6 +32,18 @@ def plot_log(filename, show=True):
     #     plt.show()
 
 
+def get_accuracy_results(filename, show=True):
+    df = pandas.read_csv(filename)
+    results = df.iloc[-1, :]#.val_capsnet_acc
+    return results
+
+
+
+
+
+
+
+
 def combine_images(generated_images, height=None, width=None):
     num = generated_images.shape[0]
     if width is None and height is None:
