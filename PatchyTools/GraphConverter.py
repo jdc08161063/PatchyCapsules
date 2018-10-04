@@ -1,18 +1,21 @@
 # coding: utf-8
+
+import os
+import random
+from copy import copy
+from collections import OrderedDict, defaultdict
+
 import numpy as np
 import pandas as pd
-from collections import OrderedDict, defaultdict
-import time
 import networkx as nx
-import numpy as np
+
 try:
     import pynauty as nauty
 except:
-    print('Pynauty is not installed')
+    print('Pynauty is not installed in this environment')
 from scipy.sparse import coo_matrix
-import os
-from collections import OrderedDict, defaultdict
 from DropboxLoader import DropboxLoader
+
 
 # ### Load data
 '''
@@ -21,8 +24,7 @@ from DropboxLoader import DropboxLoader
 '''
 
 DIR_PATH = os.environ['GAMMA_DATA_ROOT']+'Samples/'
-
-
+GRAPH_RELABEL_NAME = 'relabeled'
 
 def get_subset_adj(df_adj, df_node_label,graph_label_num):
     df_glabel = df_node_label[df_node_label.graph_ind == graph_label_num ]
@@ -39,13 +41,13 @@ def dfadj_to_dict(df_adj):
     graph =defaultdict(list)
     for key in unique_nodes:
         graph[key] += df_adj.loc[df_adj['from']==key]['to'].values.tolist()
-        graph[key] += df_adj.loc[df_adj['to']==key]['from'].values.tolist()
+        # graph[key] += df_adj.loc[df_adj['to']==key]['from'].values.tolist()
     return graph
 
 
 class GraphConverter(object):
 
-    def __init__(self,dataset_name, width, receptive_field):
+    def __init__(self,dataset_name, width, receptive_field, file_to_save=''):
         # Parameters :
         self.dataset_name = dataset_name
         self.width = width
@@ -53,11 +55,11 @@ class GraphConverter(object):
         # Import the data
         self.import_graph_data()
         # Generates the file path to dropbox
-        self.generate_file_path()
+        self.generate_file_path(file_to_save)
 
-    def generate_file_path(self):
+    def generate_file_path(self,save_name=''):
         dir_path = os.path.join(DIR_PATH, self.dataset_name)
-        tensor_file_name = '{}_patchy_tensor'.format(self.dataset_name)
+        tensor_file_name = '{}_{}_patchy_tensor'.format(self.dataset_name,save_name)
         self.file_path_save = os.path.join(dir_path, tensor_file_name)
         self.file_path_load = '{}.npy'.format(self.file_path_save)
 
@@ -79,6 +81,27 @@ class GraphConverter(object):
         self.feature_list = self.df_node_label['label'].unique()
         self.num_features = len(self.feature_list)
 
+    def relabel_nodes(self):
+
+        list_new_graphs = []
+        self.df_node_label_old = copy(self.df_node_label)
+        for i in self.graph_ids:
+            current_graph = self.df_node_label[self.df_node_label['graph_ind'] == i]
+            random.shuffle(current_graph.node.values)
+            list_new_graphs.append(current_graph)
+
+        self.df_node_label = pd.concat(list_new_graphs)
+
+    def relabel_edge_list(self,):
+        self.df_ajd_old = copy(self.df_adj)
+        relabel_dict = dict(
+            pd.merge(self.df_node_label, self.df_node_label_old, left_index=True, right_index=True).loc[:, ['node_x', 'node_y']].values)
+        self.df_adj.replace(relabel_dict, inplace = True)
+
+    def relabel_graphs(self):
+        self.relabel_nodes()
+        self.relabel_edge_list()
+        self.generate_file_path(GRAPH_RELABEL_NAME)
 
     def get_smallest_node_id_from_adj(self, df_adj):
         return min(df_adj['to'].min(), df_adj['from'].min())
@@ -124,7 +147,7 @@ class GraphConverter(object):
             temp_graph_dict = dfadj_to_dict(df_subset_adj)
             nauty_graph = nauty.Graph(len(temp_graph_dict), adjacency_dict=temp_graph_dict)
             canonical_labeling = nauty.canonical_labeling(nauty_graph)
-            canonical_labeling = [df_subset_nodes.label.values[i] for i in canonical_labeling]  ###
+            # canonical_labeling = [df_subset_nodes.label.values[i] for i in canonical_labeling]  ###
             all_canonical_labels += canonical_labeling
         return all_canonical_labels
 
@@ -160,7 +183,11 @@ class GraphConverter(object):
                 df_shortest = pd.merge(self.df_node_label, df_shortest, on='node', how='right')  #
 
                 # Sort by distance and then by cano_label
-                df_shortest = df_shortest.sort_values(by=['distance', 'cano_label'])  #
+                #df_shortest = df_shortest.sort_values(by=['distance', 'cano_label'])  #
+
+                df_shortest = df_shortest.sort_values(by=['distance'])  #
+
+
                 df_shortest = df_shortest.iloc[:self.receptive_field, :]  #
 
                 for j in range(0, min(self.receptive_field, len(df_shortest))):
@@ -196,20 +223,20 @@ class GraphConverter(object):
 
 
 
-    def graphs_to_Patchy_tensor(self):
+    def graphs_to_Patchy_tensor(self,experiment = False):
 
         if self.check_if_tensor_exists():
             print('{} tensor exists, loading it from Dropbox'.format(self.dataset_name))
             return np.load(self.file_path_load)
         else:
             print('Create dictionary of graphs')
-            adj_dict_by_graphId = self.create_adj_dict_by_graphId()
-            adj_coomatrix_by_graphId = self.create_adj_coomatrix_by_graphId(adj_dict_by_graphId)
+            self.adj_dict_by_graphId = self.create_adj_dict_by_graphId()
+            self.adj_coomatrix_by_graphId = self.create_adj_coomatrix_by_graphId(self.adj_dict_by_graphId)
             print('Canonical Labeling')
-            cano_label = self.canonical_labeling(adj_dict_by_graphId)
+            cano_label = self.canonical_labeling(self.adj_dict_by_graphId)
             self.df_node_label = pd.concat([self.df_node_label, pd.Series(cano_label, dtype=int, name='cano_label')], axis=1)
             print('Getting the Neighboors ')
-            neighbor_matrix = self.get_neighbor_matrix(adj_coomatrix_by_graphId)
+            neighbor_matrix = self.get_neighbor_matrix(self.adj_coomatrix_by_graphId)
             print('Neighboors to Tensor')
             result_tensor = self.neighbor_to_tensor(neighbor_matrix)
             self.patchy_tensor = result_tensor

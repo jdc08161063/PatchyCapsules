@@ -11,18 +11,27 @@ from sklearn.model_selection import train_test_split
 from time import time
 from datetime import datetime
 from PIL import Image
+import argparse
 
 from keras import layers, models, optimizers
 from keras import backend as K
+
 K.set_image_data_format('channels_last')
 from keras.utils import to_categorical
 from keras.preprocessing.image import ImageDataGenerator
 from keras import callbacks
 
+from keras.layers import Dense, Flatten
+from keras.layers import Conv2D, MaxPooling2D, Dropout
+from keras.models import Sequential
+from keras.losses import categorical_crossentropy
+
+from keras_tqdm import TQDMCallback
+
 from utils import plot_log
-from utils import get_accuracy_results
 
 from capsulelayers import CapsuleLayer, PrimaryCap, Length, Mask
+
 sys.path.append('./PatchyTools/')
 from GraphConverter import GraphConverter
 from DropboxLoader import DropboxLoader
@@ -31,33 +40,50 @@ from CapsuleParameters import CapsuleTrainingParameters
 
 DIR_PATH = os.environ['GAMMA_DATA_ROOT']
 
+
 class GraphClassifier(object):
-    def __init__(self,input_shape, n_class=2, routings=3):
+    def __init__(self, input_shape, n_class=2, routings=3):
         # Fixed initialization parameters:
         self.input_shape = input_shape
         self.n_class = n_class
         self.routings = routings
 
-
-
-    def import_data(self,data):
+    def import_data(self, data):
         (self.x_train, self.y_train), (self.x_test, self.y_test) = data
 
-        #assert(self.input_shape == x_train.shape[1:], 'input shape doesnt match ')
+        # assert(self.input_shape == x_train.shape[1:], 'input shape doesnt match ')
 
         self.y_train = pd.get_dummies(self.y_train).values
         self.y_test = pd.get_dummies(self.y_test).values
 
-    def import_nn_parameters(self,params):
+    def import_nn_parameters(self, params):
         self.conv_layer = params.get_layer_params('conv_layer')
         self.primary_caps_layer = params.get_layer_params('caps_layer')
         self.digit_caps_layer = params.get_layer_params('digitcaps_layer')
         self.decoder_layer = params.get_layer_params('decoder_layer')
 
+    def build_cnn_graph(self):
 
+        self.cnn_model = Sequential()
+        self.cnn_model.add(Conv2D(16, kernel_size=(5, 5), strides=(1, 1), activation='relu', input_shape=input_shape))
+        # model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
+        self.cnn_model.add(Conv2D(8, kernel_size=(5, 5), activation='relu'))
+        # model.add(MaxPooling2D(pool_size=(2, 2)))
+        self.cnn_model.add(Flatten())
+        self.cnn_model.add(Dense(128, activation='relu'))
+        self.cnn_model.add(Dropout(0.5))
+        self.cnn_model.add(Dense(self.n_class, activation='softmax'))
 
+        self.cnn_model.compile(loss=categorical_crossentropy,
+                               optimizer=optimizers.Adam(),
+                               metrics=['accuracy'])
 
-    def build_the_graph(self,params):
+        # train_model = models.Model([x, y], [out_caps, decoder(masked_by_y)])
+        # eval_model = models.Model(x, [out_caps, decoder(masked)])
+        #
+        # return train_model,eval_model,_
+
+    def build_the_graph(self, params):
         """
         A Capsule Network on MNIST.
         :param input_shape: data shape, 3d, [width, height, channels]
@@ -66,13 +92,14 @@ class GraphClassifier(object):
         :return: Two Keras Models, the first one used for training, and the second one for evaluation.
                 `eval_model` can also be used for training.
         """
+
         self.import_nn_parameters(params)
 
         start = time()
         x = layers.Input(shape=self.input_shape)
 
         # Layer 1: Just a conventional Conv2D layer
-        #params_conv_layer = self.params[0]
+        # params_conv_layer = self.params[0]
 
         conv1 = layers.Conv2D(filters=self.conv_layer['filters'],
                               kernel_size=self.conv_layer['kernel_size'],
@@ -80,12 +107,12 @@ class GraphClassifier(object):
                               padding=self.conv_layer['padding'],
                               activation=self.conv_layer['activation'],
                               name=self.conv_layer['activation'])(x)
-                              # filters=128,
-                              # kernel_size=9,
-                              # strides=1,
-                              # padding='valid',
-                              # activation='relu',
-                              # name='conv1')(x)
+        # filters=128,
+        # kernel_size=9,
+        # strides=1,
+        # padding='valid',
+        # activation='relu',
+        # name='conv1')(x)
 
         # Layer 2: Conv2D layer with `squash` activation, then reshape to [None, num_capsule, dim_capsule]
         primarycaps = PrimaryCap(conv1,
@@ -94,16 +121,16 @@ class GraphClassifier(object):
                                  kernel_size=self.primary_caps_layer['kernel_size'],
                                  strides=self.primary_caps_layer['strides'],
                                  padding=self.primary_caps_layer['padding'])
-                                 # dim_capsule=8,
-                                 # n_channels=32,
-                                 # kernel_size=2,
-                                 # strides=2,
-                                 # padding='valid')
+        # dim_capsule=8,
+        # n_channels=32,
+        # kernel_size=2,
+        # strides=2,
+        # padding='valid')
 
         # Layer 3: Capsule layer. Routing algorithm works here.
         digitcaps = CapsuleLayer(num_capsule=self.n_class,
                                  dim_capsule=self.digit_caps_layer['dim_capsule'],
-                                 #/dim_capsule = 16
+                                 # /dim_capsule = 16
                                  routings=self.routings,
                                  name=self.digit_caps_layer['name'])(primarycaps)
 
@@ -118,11 +145,14 @@ class GraphClassifier(object):
 
         # Shared Decoder model in training and prediction
         decoder = models.Sequential(name='decoder')
-        decoder.add(layers.Dense(self.decoder_layer['first_dense'], activation='relu', input_dim=self.digit_caps_layer['dim_capsule'] * self.n_class))
+        decoder.add(layers.Dense(self.decoder_layer['first_dense'], activation='relu',
+                                 input_dim=self.digit_caps_layer['dim_capsule'] * self.n_class))
         decoder.add(layers.Dense(self.decoder_layer['second_dense'], activation='relu'))
+        # decoder.add(layers.Dropout(0.5))
         # decoder.add(layers.Dense(128, activation='relu', input_dim=16 * self.n_class))
         # decoder.add(layers.Dense(256, activation='relu'))
-        decoder.add(layers.Dense(np.prod(self.input_shape), activation='sigmoid'))
+        # decoder.add(layers.Dense(np.prod(self.input_shape), activation='sigmoid'))
+        decoder.add(layers.Dense(np.prod(self.input_shape), activation='softmax'))
         decoder.add(layers.Reshape(target_shape=self.input_shape, name='out_recon'))
 
         # Models for training and evaluation (prediction)
@@ -130,19 +160,17 @@ class GraphClassifier(object):
         eval_model = models.Model(x, [out_caps, decoder(masked)])
 
         # manipulate model
-        noise = layers.Input(shape=(self.n_class, self.digit_caps_layer['dim_capsule'])) # 16
+        noise = layers.Input(shape=(self.n_class, self.digit_caps_layer['dim_capsule']))  # 16
         noised_digitcaps = layers.Add()([digitcaps, noise])
         masked_noised_y = Mask()([noised_digitcaps, y])
         manipulate_model = models.Model([x, y, noise], decoder(masked_noised_y))
         self.train_model = train_model
         self.eval_model = eval_model
         self.manipulate_model = manipulate_model
-        print('time to generate the model: {}'.format(time()-start))
+        print('time to generate the model: {}'.format(time() - start))
         return train_model, eval_model, manipulate_model
 
-
-
-    def margin_loss(self,y_true, y_pred):
+    def margin_loss(self, y_true, y_pred):
         """
         Margin loss for Eq.(4). When y_true[i, :] contains not just one `1`, this loss should work too. Not test it.
         :param y_true: [None, n_classes]
@@ -154,14 +182,13 @@ class GraphClassifier(object):
 
         return K.mean(K.sum(L, 1))
 
-    def train_generator(self,x, y, batch_size, shift_fraction=0.):
+    def train_generator(self, x, y, batch_size, shift_fraction=0.1):
         train_datagen = ImageDataGenerator(width_shift_range=shift_fraction,
                                            height_shift_range=shift_fraction)  # shift up to 2 pixel for MNIST
         generator = train_datagen.flow(x, y, batch_size=batch_size)
         while 1:
             x_batch, y_batch = generator.next()
             yield ([x_batch, y_batch], [y_batch, x_batch])
-
 
     def train(self, data, args):
         """
@@ -178,94 +205,116 @@ class GraphClassifier(object):
         # time:
         start = time()
         # callbacks
-        self.log_file = args.save_dir + '/log.csv'
+        # self.log_file = args.save_dir + '/log.csv'
+        self.log_file = os.path.join(args.save_dir, args.log_filename)
+        # self.log_file = args.save_dir + '/'+ args.log_filename
 
         log = callbacks.CSVLogger(self.log_file)
         tb = callbacks.TensorBoard(log_dir=args.save_dir + '/tensorboard-logs',
                                    batch_size=args.batch_size, histogram_freq=int(args.debug))
         checkpoint = callbacks.ModelCheckpoint(args.save_dir + '/weights-{epoch:02d}.h5', monitor='val_capsnet_acc',
-                                               save_best_only=True, save_weights_only=True, verbose=1)
+                                               save_best_only=True, save_weights_only=True, verbose=0)
         lr_decay = callbacks.LearningRateScheduler(schedule=lambda epoch: args.lr * (args.lr_decay ** epoch))
 
         # compile the model
-        self.train_model.compile(optimizer=optimizers.Adam(lr=args.lr),
-                      loss=[self.margin_loss, 'mse'],
-                      loss_weights=[1., args.lam_recon],
-                      metrics={'capsnet': 'accuracy'})
 
+        self.train_model.compile(optimizer=optimizers.Adam(lr=args.lr),
+                                 loss=[self.margin_loss, 'mse'],
+                                 loss_weights=[1., args.lam_recon],
+                                 metrics={'capsnet': 'accuracy'})
 
         # Training without data augmentation:
-        #print('shape validation : ', np.array([[self.x_test, self.y_test], [self.y_test, self.x_test]]).shape)
+        # print('shape validation : ', np.array([[self.x_test, self.y_test], [self.y_test, self.x_test]]).shape)
         if args.data_augmentation == False:
             self.train_model.fit([self.x_train, self.y_train], [self.y_train, self.x_train],
                                  batch_size=args.batch_size,
                                  epochs=args.epochs,
-                                 validation_data=[[self.x_test, self.y_test],[self.y_test, self.x_test]],
+                                 validation_data=[[self.x_test, self.y_test], [self.y_test, self.x_test]],
+                                 # validation_data=[self.x_test, self.y_test], #[self.y_test, self.x_test]],
+                                 # callbacks=[log, tb, checkpoint, lr_decay,TQDMCallback()],
                                  callbacks=[log, tb, checkpoint, lr_decay],
-                                 verbose=0)
-            #print('Evaluation: ',self.train_model.predict([[self.x_test, self.y_test], [self.y_test, self.x_test]]))
+                                 verbose=args.verbose)
+            # print('Evaluation: ',self.train_model.predict([[self.x_test, self.y_test], [self.y_test, self.x_test]]))
         else:
             # Begin: Training with data augmentation ---------------------------------------------------------------------#
             # Training with data augmentation. If shift_fraction=0., also no augmentation.
-            self.train_model.fit_generator(generator=self.train_generator(self.x_train, self.y_train, args.batch_size, args.shift_fraction),
-                                steps_per_epoch=int(y_train.shape[0] / args.batch_size),
-                                epochs=args.epochs,
-                                validation_data=[[self.x_test, self.y_test], [self.y_test, self.x_test]],
-                                callbacks=[log, tb, checkpoint, lr_decay])
+            self.train_model.fit_generator(
+                generator=self.train_generator(self.x_train, self.y_train, args.batch_size, args.shift_fraction),
+                steps_per_epoch=int(y_train.shape[0] / args.batch_size),
+                epochs=args.epochs,
+                validation_data=[[self.x_test, self.y_test], [self.y_test, self.x_test]],
+                callbacks=[log, tb, checkpoint, lr_decay, TQDMCallback()])
             # End: Training with data augmentation -----------------------------------------------------------------------#
             self.train_model.save_weights(args.save_dir + '/trained_model.h5')
         print('Trained model saved to \'%s/trained_model.h5\'' % args.save_dir)
 
-
         # Save the results:
         if args.plot_log == True:
             plot_log(self.log_file, show=True)
+
         self.training_time = time() - start
-        self.results = get_accuracy_results(self.log_file)
-        self.results['time'] = self.training_time
 
+        self.get_accuracy_results(args)
 
+    def get_accuracy_results(self, args):  # , index): # show=True):
+        df = pd.read_csv(self.log_file)  # ,index_col=0)
+        df = df.loc[:, ['epoch', 'capsnet_acc', 'val_capsnet_acc']]
+        results = df.iloc[-1, :]  # .val_capsnet_acc
 
-        #return self.train_model
+        # Adding other variables:
+        results.epoch = results.epoch + 1
+        results.rename(None, inplace=True)
+
+        results = results.append(pd.Series({'time': self.training_time}))
+        results = results.append(pd.Series({'lam_recon': args.lam_recon}))
+        results = results.append(pd.Series({'lr': args.lr}))
+        results = results.append(pd.Series({'lr_decay': args.lr_decay}))
+        results = results.append(pd.Series({'routing': args.routing}))
+        results = results.append(pd.Series({'fold': args.fold}))
+
+        self.results = results
 
 
 if __name__ == "__main__":
 
+    # Arguments:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-dataset_name', help='name_of the dataset', default='MUTAG')
+    parser.add_argument('-w', help='width for patchy', default=18)
+    parser.add_argument('-k', help='receptive field for patchy', default=10)
+    parser.add_argument('-r', help='True if relabeling', action='store_true')
+    parser.add_argument('-exp', help='name_of the experiment', default='')
 
-    # setting the hyper parameters
+    # parser.add_argument('-sampling_ratio', help='ratio to sample on', default=0.2)
 
-    args = CapsuleTrainingParameters()
+    # Parsing arguments:
+    args = parser.parse_args()
 
-    if not os.path.exists(args.save_dir):
-        os.makedirs(args.save_dir)
+    # Arguments:
+    dataset_name = args.dataset_name
+    width = int(args.w)
+    receptive_field = int(args.k)
+    relabeling = args.r
+    exp_name = args.exp
 
-    # load data
-    #(x_train, y_train), (x_test, y_test) = load_cifar()  # load_mnist()
-    # Getting the training data:
+    # dataset_name = 'MUTAG'
+    # width = 18
+    # receptive_field = 10
 
-
-    dataset_name = 'MUTAG'
-    width = 18
-    receptive_field = 10
+    # Converting Graphs into Matrices:
     PatchyConverter = GraphConverter(dataset_name, width, receptive_field)
-    mutag_tensor = PatchyConverter.graphs_to_Patchy_tensor()
-    # plt.imshow(mutag_tensor[0,:,:,2])
+    if relabeling:
+        PatchyConverter.relabel_graphs()
+
+    graph_tensor = PatchyConverter.graphs_to_Patchy_tensor()
 
     # Getting the labels:
     dropbox_loader = DropboxLoader(dataset_name)
-    mutag_labels = dropbox_loader.get_graph_label()
-    mutag_labels = np.array(mutag_labels.graph_label)
+    graph_labels = dropbox_loader.get_graph_label()
+    graph_labels = np.array(graph_labels.graph_label)
 
-    x_train, x_test, y_train, y_test = train_test_split(mutag_tensor,
-                                                        mutag_labels,
-                                                        test_size=0.10)#,
-                                                        #random_state=42)
-
-    data = ((x_train,y_train),(x_test, y_test))
-
-    input_shape = x_train.shape[1:]
-
-    capsule_params= CapsuleParameters()
+    # Capsule Architecture Parameters:
+    capsule_params = CapsuleParameters()
 
     # First conv layer: 'filters', kernel_size)
     conv_layer_name = 'conv_layer'
@@ -277,7 +326,7 @@ if __name__ == "__main__":
     conv_layer_params['activation'] = 'relu'
     conv_layer_params['name'] = 'conv1'
 
-    capsule_params.add_params(conv_layer_params,conv_layer_name)
+    capsule_params.add_params(conv_layer_params, conv_layer_name)
 
     # First Capsule Layer:
     # [num_output_caps, caps_len,'filters',kernel_size,strides,padding]
@@ -285,15 +334,13 @@ if __name__ == "__main__":
     caps_layer_params = {}
     caps_layer_params['filters'] = 256
     caps_layer_params['kernel_size'] = 2
-    caps_layer_params['strides'] = [2,2]
+    caps_layer_params['strides'] = [2, 2]
     caps_layer_params['padding'] = 'VALID'
     caps_layer_params['padding'] = 'VALID'
-
     caps_layer_params['n_channels'] = 32
     caps_layer_params['dim_capsule'] = 8
     caps_layer_params['name'] = 'caps_layer'
-
-    capsule_params.add_params(caps_layer_params,caps_layer_name)
+    capsule_params.add_params(caps_layer_params, caps_layer_name)
 
     # Digit Capsule Layer:
     digit_layer_name = 'digitcaps_layer'
@@ -301,55 +348,85 @@ if __name__ == "__main__":
     digit_layer_params['n_channels'] = 10
     digit_layer_params['dim_capsule'] = 16
     digit_layer_params['name'] = 'digitcaps'
-    capsule_params.add_params(digit_layer_params,digit_layer_name )
+    capsule_params.add_params(digit_layer_params, digit_layer_name)
 
     # Capsule Decoder:
     decoder_layer = 'decoder_layer'
     decoder_params = {}
-    decoder_params['first_dense'] = 512
-    decoder_params['second_dense'] = 1024
+    decoder_params['first_dense'] = 256  # 250 #512
+    decoder_params['second_dense'] = 512
     decoder_params['name'] = 'decoder'
+    capsule_params.add_params(decoder_params, decoder_layer)
 
+    # Training Hyperparameters:
 
-    capsule_params.add_params(decoder_params,decoder_layer)
+    args_train = CapsuleTrainingParameters()
+    if not os.path.exists(args_train.save_dir):
+        os.makedirs(args_train.save_dir)
 
     # Generate list of parameter sets::
     list_parameter_sets = []
-    n_epoch_list = [100]#, 150, 200]
-    lr_list = [0.0005]#, 0.001, 0.005]
-    lr_decay_list = [0.25,0.4]#, 0.75, 1.5]
+    list_parameter_sets.append(args_train)
+
+    n_epoch_list = [10]  # , 150, 200]
+    lr_list = [0.001]  # , 0.005]#[0.0005, 0.001]#, 0.005]
+    lr_decay_list = [0.98]  # , 0.75]#[0.25,0.4]#, 0.75, 1.5]
+    lam_recon_list = [0.392]  # ,0.7] # [0.25,0.4,0.55]
+
     for n_epoch in n_epoch_list:
         for lr in lr_list:
             for lr_decay in lr_decay_list:
-                training_params = CapsuleTrainingParameters(epochs=n_epoch, lr=lr, lr_decay=lr_decay)
-                list_parameter_sets.append(training_params)
+                for lam_recon in lam_recon_list:
+                    training_params = CapsuleTrainingParameters(epochs=n_epoch,
+                                                                lr=lr,
+                                                                lr_decay=lr_decay,
+                                                                lam_recon=lam_recon)
+                    list_parameter_sets.append(training_params)
 
+    list_parameter_sets[-1].plot_log = True
 
-    #num_params_list = len(list_parameter_sets)
-    list_parameter_sets[-1]= CapsuleTrainingParameters(epochs=n_epoch,
-                                                       lr=lr,
-                                                       lr_decay=lr_decay,
-                                                       plot_log=True)
-
+    # Default parameters:
     print('Training in {} parameter sets'.format(len(list_parameter_sets)))
-    for i,parameter_set in enumerate(list_parameter_sets):
 
-        patchy_classifier = GraphClassifier(input_shape)
-        patchy_classifier.build_the_graph(capsule_params)
-        patchy_classifier.train(data, parameter_set)
+    n_folds = 10
+    fold_set = []
 
-        if i == 0:
-            results_df = pd.DataFrame(patchy_classifier.results)
-        else:
-            results_df = pd.concat([results_df, patchy_classifier.results],1)
+    for j in range(n_folds):
+        fold_set.append(train_test_split(graph_tensor,
+                                         graph_labels,
+                                         test_size=0.10,
+                                         random_state=j))
 
-        print('Set of parameters {} trained '.format(i+1))
+    results_df = []
+    for i, parameter_set in enumerate(list_parameter_sets):
+        for j in range(n_folds):
 
+            x_train, x_test, y_train, y_test = fold_set[j]
+            data = ((x_train, y_train), (x_test, y_test))
+            input_shape = x_train.shape[1:]
+            parameter_set.add_fold(i)
+
+            patchy_classifier = GraphClassifier(input_shape)
+            patchy_classifier.build_the_graph(capsule_params)
+            patchy_classifier.train(data, parameter_set)
+
+            #if i == 0:
+            results_df.append(pd.DataFrame(patchy_classifier.results))
+            #else:
+            print('Set of parameters {} trained '.format(i + 1))
+
+
+    results_df = pd.concat(results_df, 1)
+
+
+
+    # Adding index :
+    results_df.columns = list(range(len(results_df.columns)))
+    results_df = results_df.transpose()
 
     # Saving results:
     time_now = datetime.now()
     time_now = '_'.join([str(time_now.date()).replace('-', '_'), str(time_now.hour), str(time_now.minute)])
 
-    results_path = DIR_PATH + 'Results/CapsuleSans/results_hp_search_{}.csv'.format(time_now)
+    results_path = DIR_PATH + 'Results/CapsuleSans/{}_results_{}_{}.csv'.format(dataset_name, time_now, exp_name)
     results_df.to_csv(results_path)
-

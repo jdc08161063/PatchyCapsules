@@ -35,7 +35,10 @@ class CapsuleTrainingParameters(object):
                  testing=False,
                  digit=5,
                  weights=None,
-                 plot_log=False):
+                 plot_log=False,
+                 log_filename='log_test.csv',
+                 verbose = 1):
+
         self.epochs = epochs
         self.batch_size = batch_size
         self.lr = lr
@@ -52,6 +55,20 @@ class CapsuleTrainingParameters(object):
         self.digit = digit
         self.weights = weights
         self.plot_log = plot_log
+        self.log_filename = log_filename
+        self.verbose = verbose
+
+    def generate_params_df(self):
+        dict_params = {}
+        dict_params['lr_decay'] = self.lr_decay
+        dict_params['routing'] = self.routing
+        dict_params['lr'] = self.lr
+        dict_params['lam_recon'] = self.lam_recon
+        return
+
+    def add_fold(self,j):
+        self.fold = j
+
 
 
 if __name__ == '__main__':

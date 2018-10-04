@@ -2,39 +2,51 @@ import numpy as np
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
-plt.style.use('ggplot')
+#plt.style.use('ggplot')
 import csv
 import math
-import pandas
+import pandas as pd
 
 def plot_log(filename, show=True):
 
-    data = pandas.read_csv(filename)
+    data = pd.read_csv(filename)
 
-    fig = plt.figure(figsize=(4,6))
+    fig = plt.figure(figsize=(6,8))
     fig.subplots_adjust(top=0.95, bottom=0.05, right=0.95)
-    fig.add_subplot(211)
+    fig.add_subplot(311)
     for key in data.keys():
         if key.find('loss') >= 0 and not key.find('val') >= 0:  # training loss
             plt.plot(data['epoch'].values, data[key].values, label=key)
     plt.legend()
     plt.title('Training loss')
 
-    fig.add_subplot(212)
+    fig.add_subplot(313)
     for key in data.keys():
         if key.find('acc') >= 0:  # acc
             plt.plot(data['epoch'].values, data[key].values, label=key)
     plt.legend()
     plt.title('Training and validation accuracy')
 
+    fig.add_subplot(312)
+    for key in data.keys():
+        if key.find('loss') >= 0 and key.find('val') >= 0:  # training loss
+            plt.plot(data['epoch'].values, data[key].values, label=key)
+    plt.legend()
+    plt.title('Validation loss')
+
+
     fig.savefig('result/log.png')
     # if show:
     #     plt.show()
 
 
-def get_accuracy_results(filename, show=True):
-    df = pandas.read_csv(filename,index_col=0)
-    results = df.iloc[-1, :]#.val_capsnet_acc
+def get_accuracy_results(filename): #, index): # show=True):
+    df = pd.read_csv(filename) #,index_col=0)
+    df = df.loc[:, ['epoch', 'capsnet_acc', 'val_capsnet_acc']]
+    results = df.iloc[-1, :] #.val_capsnet_acc
+    results.epoch = results.epoch + 1
+    results.name = None
+
     return results
 
 

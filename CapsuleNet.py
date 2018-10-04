@@ -507,7 +507,7 @@ if __name__ == "__main__":
     caps_layer_params['kernel_size'] = 10
     caps_layer_params['strides'] = [2,2]
     caps_layer_params['padding'] = 'VALID'
-    caps_layer_params['caps_num_out'] = 64
+    caps_layer_params['caps_num_out'] = 32
     caps_layer_params['caps_len'] = 8
     capsule_params.add_params(caps_layer_params)
 
