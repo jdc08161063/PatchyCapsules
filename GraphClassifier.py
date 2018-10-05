@@ -282,7 +282,7 @@ if __name__ == "__main__":
     parser.add_argument('-dataset_name', help='name_of the dataset', default='MUTAG')
     parser.add_argument('-w', help='width for patchy', default=18)
     parser.add_argument('-k', help='receptive field for patchy', default=10)
-    parser.add_argument('-r', help='True if relabeling', action='store_true')
+    parser.add_argument('-r', help='If present relabeling does not takes place', action='store_false')
     parser.add_argument('-exp', help='name_of the experiment', default='')
 
     # parser.add_argument('-sampling_ratio', help='ratio to sample on', default=0.2)
@@ -296,6 +296,10 @@ if __name__ == "__main__":
     receptive_field = int(args.k)
     relabeling = args.r
     exp_name = args.exp
+
+    print('relabelling:')
+    print('')
+    print(relabeling)
 
     # dataset_name = 'MUTAG'
     # width = 18
