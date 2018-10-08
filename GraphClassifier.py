@@ -12,6 +12,7 @@ from time import time
 from datetime import datetime
 from PIL import Image
 import argparse
+from collections import defaultdict
 
 from keras import layers, models, optimizers
 from keras import backend as K
@@ -28,7 +29,7 @@ from keras.losses import categorical_crossentropy
 
 from keras_tqdm import TQDMCallback
 
-from utils import plot_log
+from utils import plot_log,save_results_to_csv
 
 from capsulelayers import CapsuleLayer, PrimaryCap, Length, Mask
 
@@ -37,8 +38,11 @@ from GraphConverter import GraphConverter
 from DropboxLoader import DropboxLoader
 from CapsuleParameters import CapsuleParameters
 from CapsuleParameters import CapsuleTrainingParameters
+#from ConvNetPatchy import AccuracyHistory
 
 DIR_PATH = os.environ['GAMMA_DATA_ROOT']
+GRAPH_RELABEL_NAME = '_relabeled'
+RESULTS_PATH = os.path.join(DIR_PATH, 'Results/CapsuleSans/CNN_Caps_comparison.csv')
 
 
 class GraphClassifier(object):
@@ -65,12 +69,12 @@ class GraphClassifier(object):
     def build_cnn_graph(self):
 
         self.cnn_model = Sequential()
-        self.cnn_model.add(Conv2D(16, kernel_size=(5, 5), strides=(1, 1), activation='relu', input_shape=input_shape))
+        self.cnn_model.add(Conv2D(16, kernel_size=(5, 5), strides=(1, 1), activation='relu', input_shape=input_shape,kernel_initializer='glorot_uniform'))
         # model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
-        self.cnn_model.add(Conv2D(8, kernel_size=(5, 5), activation='relu'))
+        self.cnn_model.add(Conv2D(8, kernel_size=(5, 5), activation='relu',kernel_initializer='glorot_uniform'))
         # model.add(MaxPooling2D(pool_size=(2, 2)))
         self.cnn_model.add(Flatten())
-        self.cnn_model.add(Dense(128, activation='relu'))
+        self.cnn_model.add(Dense(128, activation='relu',kernel_initializer='glorot_uniform'))
         self.cnn_model.add(Dropout(0.5))
         self.cnn_model.add(Dense(self.n_class, activation='softmax'))
 
@@ -199,6 +203,7 @@ class GraphClassifier(object):
         :return: The trained model
         """
         self.import_data(data)
+        #self.history = AccuracyHistory()
 
         # if not hasattr(self, 'train_model'):
         #     self.build_the_graph()
@@ -243,10 +248,11 @@ class GraphClassifier(object):
                 steps_per_epoch=int(y_train.shape[0] / args.batch_size),
                 epochs=args.epochs,
                 validation_data=[[self.x_test, self.y_test], [self.y_test, self.x_test]],
-                callbacks=[log, tb, checkpoint, lr_decay, TQDMCallback()])
+                callbacks=[log, tb, checkpoint, lr_decay])
             # End: Training with data augmentation -----------------------------------------------------------------------#
             self.train_model.save_weights(args.save_dir + '/trained_model.h5')
         print('Trained model saved to \'%s/trained_model.h5\'' % args.save_dir)
+
 
         # Save the results:
         if args.plot_log == True:
@@ -279,11 +285,14 @@ if __name__ == "__main__":
 
     # Arguments:
     parser = argparse.ArgumentParser()
-    parser.add_argument('-dataset_name', help='name_of the dataset', default='MUTAG')
-    parser.add_argument('-w', help='width for patchy', default=18)
+    parser.add_argument('-n', help='name_of the dataset', default='MUTAG')
+    #parser.add_argument('-w', help='width for patchy', default=18)
     parser.add_argument('-k', help='receptive field for patchy', default=10)
-    parser.add_argument('-r', help='If present relabeling does not takes place', action='store_false')
-    parser.add_argument('-exp', help='name_of the experiment', default='')
+    parser.add_argument('-e', help='number of epochs', default=200)
+    parser.add_argument('-f', help='number of different folds', default=10)
+    parser.add_argument('-r', dest='relabelling', help='reshuffling takes place', action='store_true')
+    parser.add_argument('-nr', dest='relabelling', help='no reshuffling takes place', action='store_false')
+    parser.set_defaults(relabelling=True)
 
     # parser.add_argument('-sampling_ratio', help='ratio to sample on', default=0.2)
 
@@ -291,26 +300,28 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Arguments:
-    dataset_name = args.dataset_name
-    width = int(args.w)
+    dataset_name = args.n
+    #width = int(args.w)
     receptive_field = int(args.k)
-    relabeling = args.r
-    exp_name = args.exp
+    relabelling = args.relabelling
+    epochs = int(args.e)
+    n_folds = int(args.f)
 
-    print('relabelling:')
-    print('')
-    print(relabeling)
+    # print('relabelling:')
+    # print('')
+    # print(relabeling)
 
     # dataset_name = 'MUTAG'
     # width = 18
     # receptive_field = 10
 
     # Converting Graphs into Matrices:
-    PatchyConverter = GraphConverter(dataset_name, width, receptive_field)
-    if relabeling:
+    PatchyConverter = GraphConverter(dataset_name, receptive_field, GRAPH_RELABEL_NAME)
+    if relabelling:
         PatchyConverter.relabel_graphs()
 
     graph_tensor = PatchyConverter.graphs_to_Patchy_tensor()
+    avg_nodes_per_graph = PatchyConverter.avg_nodes_per_graph
 
     # Getting the labels:
     dropbox_loader = DropboxLoader(dataset_name)
@@ -370,11 +381,11 @@ if __name__ == "__main__":
 
     # Generate list of parameter sets::
     list_parameter_sets = []
-    list_parameter_sets.append(args_train)
+    #list_parameter_sets.append(args_train)
 
-    n_epoch_list = [10]  # , 150, 200]
+    n_epoch_list = [epochs]  # , 150, 200]
     lr_list = [0.001]  # , 0.005]#[0.0005, 0.001]#, 0.005]
-    lr_decay_list = [0.98]  # , 0.75]#[0.25,0.4]#, 0.75, 1.5]
+    lr_decay_list = [0.9]  # , 0.75]#[0.25,0.4]#, 0.75, 1.5]
     lam_recon_list = [0.392]  # ,0.7] # [0.25,0.4,0.55]
 
     for n_epoch in n_epoch_list:
@@ -387,12 +398,12 @@ if __name__ == "__main__":
                                                                 lam_recon=lam_recon)
                     list_parameter_sets.append(training_params)
 
-    list_parameter_sets[-1].plot_log = True
+    #list_parameter_sets[-1].plot_log = True
 
     # Default parameters:
     print('Training in {} parameter sets'.format(len(list_parameter_sets)))
 
-    n_folds = 10
+
     fold_set = []
 
     for j in range(n_folds):
@@ -402,6 +413,8 @@ if __name__ == "__main__":
                                          random_state=j))
 
     results_df = []
+    val_acc = []
+    training_time=[]
     for i, parameter_set in enumerate(list_parameter_sets):
         for j in range(n_folds):
 
@@ -414,23 +427,51 @@ if __name__ == "__main__":
             patchy_classifier.build_the_graph(capsule_params)
             patchy_classifier.train(data, parameter_set)
 
+            training_time.append(patchy_classifier.training_time)
+            val_acc.append(patchy_classifier.results.val_capsnet_acc)
+
             #if i == 0:
             results_df.append(pd.DataFrame(patchy_classifier.results))
             #else:
             print('Set of parameters {} trained '.format(i + 1))
 
 
-    results_df = pd.concat(results_df, 1)
+
+    #OLD results:
+    # results_df = pd.concat(results_df, 1)
+    # results_df.columns = list(range(len(results_df.columns)))
+    # results_df = results_df.transpose()
+    #
+    # # Saving results:
+    # time_now = datetime.now()
+    # time_now = '_'.join([str(time_now.date()).replace('-', '_'), str(time_now.hour), str(time_now.minute)])
+    # results_path = DIR_PATH + 'Results/CapsuleSans/{}_results_{}_{}.csv'.format(dataset_name, time_now, exp_name)
+
+
+    # results_df.to_csv(results_path)
+    #
+
+    mean_acc = np.mean(val_acc)
+    std_acc = np.std(val_acc)
+
+    mean_time = np.mean(training_time)
+    std_time = np.std(training_time)
+
+    results_dd = defaultdict(list)
+    results_dd['Mean accuracy'].append(mean_acc)
+    results_dd['Std accuracy'].append(std_acc)
+    results_dd['Relabelling'].append(relabelling)
+    results_dd['Dataset'].append(dataset_name)
+    results_dd['Number of graphs'].append(graph_tensor.shape[0])
+    results_dd['Number of epochs'].append(epochs)
+    results_dd['Number of folds'].append(n_folds)
+    results_dd['Avg number of nodes'].append(avg_nodes_per_graph)
+    results_dd['Mean training time'].append(mean_time)
+    results_dd['Std training time'].append(std_time)
+
+
+    results_df = pd.DataFrame(results_dd)
+    save_results_to_csv(results_df, RESULTS_PATH)
 
 
 
-    # Adding index :
-    results_df.columns = list(range(len(results_df.columns)))
-    results_df = results_df.transpose()
-
-    # Saving results:
-    time_now = datetime.now()
-    time_now = '_'.join([str(time_now.date()).replace('-', '_'), str(time_now.hour), str(time_now.minute)])
-
-    results_path = DIR_PATH + 'Results/CapsuleSans/{}_results_{}_{}.csv'.format(dataset_name, time_now, exp_name)
-    results_df.to_csv(results_path)

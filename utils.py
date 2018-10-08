@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import csv
 import math
 import pandas as pd
+import os
 
 def plot_log(filename, show=True):
 
@@ -51,6 +52,14 @@ def get_accuracy_results(filename): #, index): # show=True):
 
 
 
+def save_results_to_csv(file_to_append, file_name):
+    if os.path.exists(file_name):
+        df = pd.read_csv(file_name, index_col=0)
+        df = df.append(file_to_append)
+        df.reset_index(drop=True, inplace=True)
+        df.to_csv(file_name)
+    else:
+        file_to_append.to_csv(file_name)
 
 
 

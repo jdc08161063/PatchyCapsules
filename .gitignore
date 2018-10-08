@@ -1,3 +1,5 @@
+graph_MUTAG.html
+graph_DD.html
 __pycache__/*
 result/
 test_mutag.npy

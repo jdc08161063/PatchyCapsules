@@ -24,7 +24,7 @@ from DropboxLoader import DropboxLoader
 '''
 
 DIR_PATH = os.environ['GAMMA_DATA_ROOT']+'Samples/'
-GRAPH_RELABEL_NAME = 'relabeled'
+GRAPH_RELABEL_NAME = '_relabeled'
 
 def get_subset_adj(df_adj, df_node_label,graph_label_num):
     df_glabel = df_node_label[df_node_label.graph_ind == graph_label_num ]
@@ -47,19 +47,20 @@ def dfadj_to_dict(df_adj):
 
 class GraphConverter(object):
 
-    def __init__(self,dataset_name, width, receptive_field, file_to_save=''):
+    def __init__(self,dataset_name, receptive_field, file_to_save=''):
         # Parameters :
         self.dataset_name = dataset_name
-        self.width = width
         self.receptive_field = receptive_field
         # Import the data
         self.import_graph_data()
         # Generates the file path to dropbox
+
+        self.width = int(np.ceil(self.get_average_num_nodes()))
         self.generate_file_path(file_to_save)
 
     def generate_file_path(self,save_name=''):
         dir_path = os.path.join(DIR_PATH, self.dataset_name)
-        tensor_file_name = '{}_{}_patchy_tensor'.format(self.dataset_name,save_name)
+        tensor_file_name = '{}_patchy_tensor_w_{}{}'.format(self.dataset_name,self.width,save_name)
         self.file_path_save = os.path.join(dir_path, tensor_file_name)
         self.file_path_load = '{}.npy'.format(self.file_path_save)
 
@@ -80,6 +81,8 @@ class GraphConverter(object):
 
         self.feature_list = self.df_node_label['label'].unique()
         self.num_features = len(self.feature_list)
+        # Generating dictionary of graphs:
+        self.adj_dict_by_graphId = self.create_adj_dict_by_graphId()
 
     def relabel_nodes(self):
 
@@ -92,7 +95,7 @@ class GraphConverter(object):
 
         self.df_node_label = pd.concat(list_new_graphs)
 
-    def relabel_edge_list(self,):
+    def relabel_edge_list(self):
         self.df_ajd_old = copy(self.df_adj)
         relabel_dict = dict(
             pd.merge(self.df_node_label, self.df_node_label_old, left_index=True, right_index=True).loc[:, ['node_x', 'node_y']].values)
@@ -127,7 +130,8 @@ class GraphConverter(object):
         """
 
         adj_coomatrix_by_graphId = {}
-        unique_graph_labels = self.df_node_label.graph_ind.unique()
+        #unique_graph_labels = self.df_node_label.graph_ind.unique()
+        unique_graph_labels = self.graph_ids
         for l in unique_graph_labels:
             df_subset_adj = adj_dict_by_graphId[l]
             df_subset_node_label = self.df_node_label[self.df_node_label['graph_ind']== l]
@@ -223,14 +227,15 @@ class GraphConverter(object):
 
 
 
-    def graphs_to_Patchy_tensor(self,experiment = False):
+    def graphs_to_Patchy_tensor(self):
+
 
         if self.check_if_tensor_exists():
             print('{} tensor exists, loading it from Dropbox'.format(self.dataset_name))
             return np.load(self.file_path_load)
         else:
             print('Create dictionary of graphs')
-            self.adj_dict_by_graphId = self.create_adj_dict_by_graphId()
+
             self.adj_coomatrix_by_graphId = self.create_adj_coomatrix_by_graphId(self.adj_dict_by_graphId)
             print('Canonical Labeling')
             cano_label = self.canonical_labeling(self.adj_dict_by_graphId)
@@ -242,6 +247,22 @@ class GraphConverter(object):
             self.patchy_tensor = result_tensor
             np.save(self.file_path_save,result_tensor)
             return result_tensor
+
+
+    def get_average_num_nodes(self):
+        if not hasattr(self,'adj_dict_by_graphId'):
+            self.adj_dict_by_graphId = self.create_adj_dict_by_graphId()
+        self.nodes_per_graph = []
+        for graph_key in self.graph_ids:
+            adj_dict = self.adj_dict_by_graphId[graph_key]
+            self.nodes_per_graph.append(len(np.unique(adj_dict.values)))
+        self.avg_nodes_per_graph = np.mean(self.nodes_per_graph)
+        return self.avg_nodes_per_graph
+
+
+
+
+
 
 
 
