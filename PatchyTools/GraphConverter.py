@@ -232,8 +232,10 @@ class GraphConverter(object):
 
         if self.check_if_tensor_exists():
             print('{} tensor exists, loading it from Dropbox'.format(self.dataset_name))
+            print('Loading path: {}'.format(self.file_path_load))
             return np.load(self.file_path_load)
         else:
+            print('{} Graph Embedding non exisiting: {}'.format(self.dataset_name,self.file_path_load))
             print('Create dictionary of graphs')
 
             self.adj_coomatrix_by_graphId = self.create_adj_coomatrix_by_graphId(self.adj_dict_by_graphId)

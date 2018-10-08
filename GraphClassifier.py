@@ -27,10 +27,7 @@ from keras.layers import Conv2D, MaxPooling2D, Dropout
 from keras.models import Sequential
 from keras.losses import categorical_crossentropy
 
-from keras_tqdm import TQDMCallback
-
 from utils import plot_log,save_results_to_csv
-
 from capsulelayers import CapsuleLayer, PrimaryCap, Length, Mask
 
 sys.path.append('./PatchyTools/')
