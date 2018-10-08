@@ -24,7 +24,7 @@ from DropboxLoader import DropboxLoader
 '''
 
 DIR_PATH = os.environ['GAMMA_DATA_ROOT']+'Samples/'
-GRAPH_RELABEL_NAME = '_relabeled'
+GRAPH_RELABEL_NAME = '_relabelled'
 
 def get_subset_adj(df_adj, df_node_label,graph_label_num):
     df_glabel = df_node_label[df_node_label.graph_ind == graph_label_num ]
@@ -235,7 +235,7 @@ class GraphConverter(object):
             print('Loading path: {}'.format(self.file_path_load))
             return np.load(self.file_path_load)
         else:
-            print('{} Graph Embedding non exisiting: {}'.format(self.dataset_name,self.file_path_load))
+            print('{} graph tensor non exisiting at : {}'.format(self.dataset_name,self.file_path_load))
             print('Create dictionary of graphs')
 
             self.adj_coomatrix_by_graphId = self.create_adj_coomatrix_by_graphId(self.adj_dict_by_graphId)
@@ -248,6 +248,8 @@ class GraphConverter(object):
             result_tensor = self.neighbor_to_tensor(neighbor_matrix)
             self.patchy_tensor = result_tensor
             np.save(self.file_path_save,result_tensor)
+
+            print('{} graph tensor created at: {}'.format(self.dataset_name,self.file_path_load))
             return result_tensor
 
 
