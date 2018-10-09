@@ -467,6 +467,7 @@ if __name__ == "__main__":
     results_dd['Avg number of nodes'].append(avg_nodes_per_graph)
     results_dd['Mean training time'].append(mean_time)
     results_dd['Std training time'].append(std_time)
+    results_dd['Model'].append('Patchy + Capsule Net')
 
 
     results_df = pd.DataFrame(results_dd)
@@ -474,7 +475,7 @@ if __name__ == "__main__":
 
 
     if save == True:
-        print('getting here')
+        #print('getting here')
         save_results_to_csv(results_df, RESULTS_PATH)
 
 

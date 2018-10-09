@@ -311,9 +311,10 @@ if __name__ == "__main__":
 
     # Converting Graphs into Matrices:
     PatchyConverter = GraphConverter(dataset_name, receptive_field)
+    print('Graph imported')
     if relabelling:
+        print('Relabelling:')
         PatchyConverter.relabel_graphs()
-        print('enter here')
 
     graph_tensor = PatchyConverter.graphs_to_Patchy_tensor()
     avg_nodes_per_graph = PatchyConverter.avg_nodes_per_graph

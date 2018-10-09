@@ -52,9 +52,10 @@ class GraphConverter(object):
         self.dataset_name = dataset_name
         self.receptive_field = receptive_field
         # Import the data
+        print('importing graph data')
         self.import_graph_data()
         # Generates the file path to dropbox
-
+        print('getting width')
         self.width = int(np.ceil(self.get_average_num_nodes()))
         self.generate_file_path(file_to_save)
 
@@ -81,8 +82,10 @@ class GraphConverter(object):
 
         self.feature_list = self.df_node_label['label'].unique()
         self.num_features = len(self.feature_list)
+        print('generating dictionary of graphs:')
         # Generating dictionary of graphs:
         self.adj_dict_by_graphId = self.create_adj_dict_by_graphId()
+
 
     def relabel_nodes(self):
 
@@ -124,6 +127,8 @@ class GraphConverter(object):
             adj_dict_by_graphId[l] = df_subset_adj
         return adj_dict_by_graphId
 
+
+
     def create_adj_coomatrix_by_graphId(self, adj_dict_by_graphId):
         """
         return: a coomatrix per graphId
@@ -149,7 +154,14 @@ class GraphConverter(object):
             df_subset_nodes = self.df_node_label[self.df_node_label.graph_ind == l]
             # temp_graph_dict = utils.dfadj_to_dict(df_subset_adj)
             temp_graph_dict = dfadj_to_dict(df_subset_adj)
-            nauty_graph = nauty.Graph(len(temp_graph_dict), adjacency_dict=temp_graph_dict)
+            try:
+                nauty_graph = nauty.Graph(len(temp_graph_dict), adjacency_dict=temp_graph_dict)
+            except:
+                missing = len(set(range(len(temp_graph_dict.keys()) + 1)).difference(set(temp_graph_dict.keys())))
+                print('missing nodes in graph number {} :  {}'.format(l,missing))
+                nauty_graph = nauty.Graph(len(temp_graph_dict)+missing, adjacency_dict=temp_graph_dict)
+                #raise
+                pass
             canonical_labeling = nauty.canonical_labeling(nauty_graph)
             # canonical_labeling = [df_subset_nodes.label.values[i] for i in canonical_labeling]  ###
             all_canonical_labels += canonical_labeling
@@ -254,6 +266,7 @@ class GraphConverter(object):
 
 
     def get_average_num_nodes(self):
+
         if not hasattr(self,'adj_dict_by_graphId'):
             self.adj_dict_by_graphId = self.create_adj_dict_by_graphId()
         self.nodes_per_graph = []

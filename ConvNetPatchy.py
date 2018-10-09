@@ -100,11 +100,11 @@ if __name__ == "__main__":
     parser.add_argument('-k', help='receptive field for patchy', default=10)
     parser.add_argument('-e', help='number of epochs', default=200)
     parser.add_argument('-f', help='number of different folds', default=10)
-    parser.add_argument('-ns', dest='not_save', help='saving by default', action='store_false')
+    parser.add_argument('-s', dest='save', help='saving by default', action='store_true')
     parser.add_argument('-r', dest='relabelling', help='reshuffling takes place', action='store_true')
     parser.add_argument('-nr', dest='relabelling', help='no reshuffling takes place', action='store_false')
     parser.set_defaults(relabelling=True)
-    parser.set_defaults(not_save=False)
+    parser.set_defaults(save=False)
 
 
     # parser.add_argument('-sampling_ratio', help='ratio to sample on', default=0.2)
@@ -119,7 +119,7 @@ if __name__ == "__main__":
     epochs = int(args.e)
     n_folds = int(args.f)
     relabeling = args.relabelling
-    not_save = args.not_save
+    save = args.save
 
 
     # Getting the data:
@@ -170,9 +170,10 @@ if __name__ == "__main__":
     results_dd['Avg number of nodes'].append(avg_nodes_per_graph)
     results_dd['Mean training time'].append(mean_time)
     results_dd['Std training time'].append(std_time)
+    results_dd['Model'].append('Patchy + CNN')
 
     results_df = pd.DataFrame(results_dd)
-    if not_save == False:
+    if save == True:
         save_results_to_csv(results_df, RESULTS_PATH)
 
 
