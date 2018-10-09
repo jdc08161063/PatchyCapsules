@@ -104,6 +104,7 @@ if __name__ == "__main__":
     parser.add_argument('-r', dest='relabelling', help='reshuffling takes place', action='store_true')
     parser.add_argument('-nr', dest='relabelling', help='no reshuffling takes place', action='store_false')
     parser.set_defaults(relabelling=True)
+    parser.set_defaults(not_save=False)
 
 
     # parser.add_argument('-sampling_ratio', help='ratio to sample on', default=0.2)
