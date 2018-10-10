@@ -45,7 +45,7 @@ def dfadj_to_dict(df_adj):
     return graph
 
 
-class GraphConverter(object):
+class PatchyConverter(object):
 
     def __init__(self,dataset_name, receptive_field, file_to_save=''):
         # Parameters :
@@ -80,24 +80,74 @@ class GraphConverter(object):
 
         self.graph_ids = self.df_node_label['graph_ind'].unique()
         self.num_graphs = len(self.graph_ids)
+        print('number of graphs in {} dataset : {}'.format(self.dataset_name,self.num_graphs))
 
         self.feature_list = self.df_node_label['label'].unique()
         self.num_features = len(self.feature_list)
-        print('generating dictionary of graphs:')
+        print('number of features : {}'.format(self.num_features))
         # Generating dictionary of graphs:
+        print('Separating Graphs per graph ID')
+
+        self.node_label_by_graphId = self.create_node_label_by_graphId()
         self.adj_dict_by_graphId = self.create_adj_dict_by_graphId()
+
+
+
+
+
+    def create_adj_dict_by_graphId(self):
+        '''
+        input: df_node_label
+        ##return: {1: {0:[0,2,5]}} = {graphId: {nodeId:[node,node,node]}}
+        output: graphID and the adj matrix corresponding to that graph
+        '''
+        adj_dict_by_graphId = {}
+        node_graph_id = self.df_node_label.loc[:, ['node', 'graph_ind']]
+        adj_graph_ind = self.df_adj.merge(node_graph_id, how='inner', left_on='from', right_on='node')
+        adj_graph_ind = adj_graph_ind.loc[:, ['from', 'to', 'graph_ind']]
+        #self.min_node_per_graph = {}
+
+        for graph_index in self.graph_ids:
+            #df_subset_adj = get_subset_adj(self.df_adj, self.df_node_label, graph_label_num=l)
+            df_subset_adj = copy(adj_graph_ind[adj_graph_ind['graph_ind']==graph_index])
+            #smallest_node_id = self.get_smallest_node_id_from_adj(df_subset_adj)
+            #self.min_node_per_graph[graph_index] = smallest_node_id
+
+            df_subset_adj['from'] = df_subset_adj['from'].apply(lambda x: x-self.min_node_per_graph[graph_index])
+            df_subset_adj['to'] = df_subset_adj['to'].apply(lambda x: x - self.min_node_per_graph[graph_index])
+
+            adj_dict_by_graphId[graph_index] = df_subset_adj
+
+        return adj_dict_by_graphId
+
+
+    def create_node_label_by_graphId(self):
+        node_label_by_graphId = {}
+        self.min_node_per_graph = {}
+        for i in self.graph_ids:
+            node_label = copy(self.df_node_label[self.df_node_label['graph_ind'] == i])
+
+            min_node_per_graph = node_label.node.min()
+
+            node_label['node'] = node_label['node'].apply(lambda x: x-min_node_per_graph)
+            node_label_by_graphId[i] = node_label
+            self.min_node_per_graph[i] = min_node_per_graph
+        return node_label_by_graphId
 
 
     def relabel_nodes(self):
 
         list_new_graphs = []
-        self.df_node_label_old = copy(self.df_node_label)
+        self.node_label_by_graphID_old = copy(self.node_label_by_graphID)
+        self.node_label_by_graphID = {}
+        self.relabel_by_graphId = {}
         for i in self.graph_ids:
-            current_graph = self.df_node_label[self.df_node_label['graph_ind'] == i]
+            current_graph = self.node_label_by_graphID_old[i]
             random.shuffle(current_graph.node.values)
-            list_new_graphs.append(current_graph)
+            self.node_label_by_graphID[i] = current_graph
+            #self.relabel_by_graphId()
 
-        self.df_node_label = pd.concat(list_new_graphs)
+            #self.df_node_label = pd.concat(list_new_graphs)
 
     def relabel_edge_list(self):
         self.df_ajd_old = copy(self.df_adj)
@@ -118,49 +168,40 @@ class GraphConverter(object):
         #self.df_adj.replace(relabel_dict, inplace = True)
 
     def relabel_graphs(self):
-        self.relabel_nodes()
-        self.relabel_edge_list()
-        self.adj_dict_by_graphId = self.create_adj_dict_by_graphId()
+        # Reassign the dictionaries:
+        self.adj_dict_by_graphId_old = copy(self.adj_dict_by_graphId)
+        self.node_label_by_graphId_old = copy(self.node_label_by_graphId)
+
+        # New dictionaries:
+        self.adj_dict_by_graphId = {}
+        self.node_label_by_graphId = {}
+
+        # Relabelling:
+        for i in self.graph_ids:
+            current_node_label_old = self.node_label_by_graphId_old[i]
+            current_node_label = copy(current_node_label_old)
+            # Shuffle them
+            random.shuffle(current_node_label.node.values)
+            relabelled_df = pd.DataFrame({'old_node': current_node_label_old.node, 'new_node': current_node_label.node})
+            self.node_label_by_graphId[i] = current_node_label
+
+            current_adj_old = self.adj_dict_by_graphId_old[i]
+            current_adj = copy(current_adj_old)
+            current_adj = current_adj.merge(relabelled_df, how='inner', left_on='from', right_on='old_node').loc[:,
+                          ['new_node', 'to', 'graph_ind']]
+            current_adj.rename(columns={'new_node': 'from'}, inplace=True)
+            current_adj = current_adj.merge(relabelled_df, how='inner', left_on='to', right_on='old_node').loc[:,
+                          ['new_node', 'from', 'graph_ind']]
+            current_adj.rename(columns={'new_node': 'to'}, inplace=True)
+            self.adj_dict_by_graphId[i] = current_adj
+
         self.generate_file_path(GRAPH_RELABEL_NAME)
 
     def get_smallest_node_id_from_adj(self, df_adj):
         return min(df_adj['to'].min(), df_adj['from'].min())
 
-    def create_adj_dict_by_graphId(self):
-        '''
-        input: df_node_label
-        ##return: {1: {0:[0,2,5]}} = {graphId: {nodeId:[node,node,node]}}
-        output: graphID and the adj matrix corresponding to that graph
-        '''
-        adj_dict_by_graphId = {}
-        node_graph_id = self.df_node_label.loc[:, ['node', 'graph_ind']]
-        adj_graph_ind = self.df_adj.merge(node_graph_id, how='inner', left_on='from', right_on='node')
-        adj_graph_ind = adj_graph_ind.loc[:, ['from', 'to', 'graph_ind']]
 
-        for graph_index in self.graph_ids:
-            #df_subset_adj = get_subset_adj(self.df_adj, self.df_node_label, graph_label_num=l)
-            df_subset_adj = copy(adj_graph_ind[adj_graph_ind['graph_ind']==graph_index])
-            smallest_node_id = self.get_smallest_node_id_from_adj(df_subset_adj)
-
-            #df_subset_adj['from'] = df_subset_adj['from'].map(lambda a: a - smallest_node_id)
-            #df_subset_adj.loc[:,'from'] = df_subset_adj.loc[:,'from'] -smallest_node_id
-            #df_subset_adj.loc[:, 'to'] = df_subset_adj.loc[:, 'to'] - smallest_node_id
-            #df_subset_adj['to'] = df_subset_adj['to'].map(lambda a: a - smallest_node_id)
-            #df_subset_adj.from = df_subset_adj.from - smallest_node_id
-            #df_subset_adj.to = df_subset_adj.to -smallest_node_id
-            #df_subset_adj.loc[:,'from'] = [i - smallest_node_id for i in df_subset_adj.loc[:,'from'].values]
-            #df_subset_adj.loc[:,'to'] = [i - smallest_node_id for i in df_subset_adj.loc[:,'to'].values]
-
-            df_subset_adj['from'] = df_subset_adj['from'].apply(lambda x: x-smallest_node_id)
-            df_subset_adj['to'] = df_subset_adj['to'].apply(lambda x: x - smallest_node_id)
-
-            adj_dict_by_graphId[graph_index] = df_subset_adj
-
-        return adj_dict_by_graphId
-
-
-
-    def create_adj_coomatrix_by_graphId(self, adj_dict_by_graphId):
+    def create_adj_coomatrix_by_graphId(self):
         """
         return: a coomatrix per graphId
         """
@@ -168,28 +209,28 @@ class GraphConverter(object):
         adj_coomatrix_by_graphId = {}
         #unique_graph_labels = self.df_node_label.graph_ind.unique()
         unique_graph_labels = self.graph_ids
-        for l in unique_graph_labels:
-            df_subset_adj = adj_dict_by_graphId[l]
-            df_subset_node_label = self.df_node_label[self.df_node_label['graph_ind']== l]
+        for k in unique_graph_labels:
+            df_subset_adj = self.adj_dict_by_graphId[k]
+            df_subset_node_label = self.node_label_by_graphId[k]
             adjacency = coo_matrix((np.ones(len(df_subset_adj)),
-                                    (df_subset_adj.iloc[:, 0].values, df_subset_adj.iloc[:, 1].values)),
+                                    (df_subset_adj.loc[:, 'from'].values, df_subset_adj.loc[:, 'to'].values)),
                                    shape=(len(df_subset_node_label), len(df_subset_node_label))
                                    )
-            adj_coomatrix_by_graphId[l] = adjacency
+            adj_coomatrix_by_graphId[k] = adjacency
         return adj_coomatrix_by_graphId
 
-    def canonical_labeling(self,adj_dict_by_graphId):
+    def canonical_labeling(self):
         all_canonical_labels = []
-        for l in self.graph_ids:
-            df_subset_adj = adj_dict_by_graphId[l]
-            df_subset_nodes = self.df_node_label[self.df_node_label.graph_ind == l]
+        for k in self.graph_ids:
+            df_subset_adj = self.adj_dict_by_graphId[k]
+            df_subset_nodes = self.node_label_by_graphId[k]
             # temp_graph_dict = utils.dfadj_to_dict(df_subset_adj)
             temp_graph_dict = dfadj_to_dict(df_subset_adj)
             try:
                 nauty_graph = nauty.Graph(len(temp_graph_dict), adjacency_dict=temp_graph_dict)
             except:
                 missing = len(set(range(len(temp_graph_dict.keys()) + 1)).difference(set(temp_graph_dict.keys())))
-                print('missing nodes in graph number {} :  {}'.format(l,missing))
+                print('missing nodes in graph number {} :  {}'.format(k,missing))
                 nauty_graph = nauty.Graph(len(temp_graph_dict)+missing, adjacency_dict=temp_graph_dict)
                 #raise
                 pass
@@ -214,7 +255,7 @@ class GraphConverter(object):
             neighborhoods = np.zeros((self.width, self.receptive_field), dtype=np.int32)
             neighborhoods.fill(-1)
 
-            df_sequence = self.df_node_label[self.df_node_label.graph_ind == l]
+            df_sequence = self.node_label_by_graphId[l]
             df_sequence = df_sequence.sort_values(by='cano_label')
             smallest_node_id = df_sequence.node.min()
 
@@ -281,10 +322,12 @@ class GraphConverter(object):
             print('{} graph tensor non exisiting at : {}'.format(self.dataset_name,self.file_path_load))
             print('Create dictionary of graphs')
 
-            self.adj_coomatrix_by_graphId = self.create_adj_coomatrix_by_graphId(self.adj_dict_by_graphId)
+            self.adj_coomatrix_by_graphId = self.create_adj_coomatrix_by_graphId()
             print('Canonical Labeling')
-            cano_label = self.canonical_labeling(self.adj_dict_by_graphId)
-            self.df_node_label = pd.concat([self.df_node_label, pd.Series(cano_label, dtype=int, name='cano_label')], axis=1)
+
+            #### ------>>>CHECK HERE
+            self.cano_label = self.canonical_labeling()
+            self.df_node_label = pd.concat([self.df_node_label, pd.Series(self.cano_label, dtype=int, name='cano_label')], axis=1)
             print('Getting the Neighboors ')
             neighbor_matrix = self.get_neighbor_matrix(self.adj_coomatrix_by_graphId)
             print('Neighboors to Tensor')
