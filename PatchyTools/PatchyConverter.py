@@ -206,7 +206,7 @@ class PatchyConverter(object):
         return: a coomatrix per graphId
         """
 
-        adj_coomatrix_by_graphId = {}
+        self.adj_coomatrix_by_graphId = {}
         #unique_graph_labels = self.df_node_label.graph_ind.unique()
         unique_graph_labels = self.graph_ids
         for k in unique_graph_labels:
@@ -216,8 +216,8 @@ class PatchyConverter(object):
                                     (df_subset_adj.loc[:, 'from'].values, df_subset_adj.loc[:, 'to'].values)),
                                    shape=(len(df_subset_node_label), len(df_subset_node_label))
                                    )
-            adj_coomatrix_by_graphId[k] = adjacency
-        return adj_coomatrix_by_graphId
+            self.adj_coomatrix_by_graphId[k] = adjacency
+
 
     def canonical_labeling(self):
         all_canonical_labels = []
@@ -235,11 +235,14 @@ class PatchyConverter(object):
                 #raise
                 pass
             canonical_labeling = nauty.canonical_labeling(nauty_graph)
-            # canonical_labeling = [df_subset_nodes.label.values[i] for i in canonical_labeling]  ###
-            all_canonical_labels += canonical_labeling
-        return all_canonical_labels
+            self.node_label_by_graphId[k].reset_index(inplace=True)
+            self.node_label_by_graphId[k] = pd.concat([self.node_label_by_graphId[k], pd.Series(canonical_labeling, dtype=int, name='cano_label')], axis=1)
 
-    def get_neighbor_matrix(self, adj_coomatrix_by_graphId):
+            # canonical_labeling = [df_subset_nodes.label.values[i] for i in canonical_labeling]  ###
+            # all_canonical_labels += canonical_labeling
+        #return all_canonical_labels
+
+    def get_neighbor_matrix(self):
 
         """
         Input :
@@ -247,7 +250,7 @@ class PatchyConverter(object):
         """
 
         for l_ind, l in enumerate(self.graph_ids):
-            adjacency = adj_coomatrix_by_graphId[l]
+            adjacency = self.adj_coomatrix_by_graphId[l]
             graph = nx.from_numpy_matrix(adjacency.todense())
 
             # Create the neighbors with -1 for neighbor assemble.
@@ -257,18 +260,22 @@ class PatchyConverter(object):
 
             df_sequence = self.node_label_by_graphId[l]
             df_sequence = df_sequence.sort_values(by='cano_label')
-            smallest_node_id = df_sequence.node.min()
+            #smallest_node_id = df_sequence.node.min()
 
             # CUT GRAPH BY THRESHOLD of cano_label ''' Top width w elements of V according to labeling  '''
             df_sequence = df_sequence.iloc[:self.width, :]
-            df_sequence['node'] = df_sequence.node.values - smallest_node_id
+            #df_sequence['node'] = df_sequence.node.values - self.min_node_per_graph[l]
 
             for i, node in enumerate(df_sequence.node):
-                df_shortest = pd.DataFrame.from_dict(nx.single_source_dijkstra_path_length(graph, node),
+                try:
+                    df_shortest = pd.DataFrame.from_dict(nx.single_source_dijkstra_path_length(graph, node),
                                                      orient='index')  #
+                except:
+                    print('problems in graph {}, node: {}'.format(l,i))
+                    raise
                 df_shortest.columns = ['distance']  #
                 df_shortest['node'] = df_shortest.index.values  #
-                df_shortest = pd.merge(self.df_node_label, df_shortest, on='node', how='right')  #
+                df_shortest = pd.merge(self.node_label_by_graphId[l], df_shortest, on='node', how='right')  #
 
                 # Sort by distance and then by cano_label
                 #df_shortest = df_shortest.sort_values(by=['distance', 'cano_label'])  #
@@ -279,14 +286,14 @@ class PatchyConverter(object):
                 df_shortest = df_shortest.iloc[:self.receptive_field, :]  #
 
                 for j in range(0, min(self.receptive_field, len(df_shortest))):
-                    neighborhoods[i][j] = df_shortest['node'].values[j] + smallest_node_id
+                    neighborhoods[i][j] = df_shortest['node'].values[j] + self.min_node_per_graph[l]
             if l_ind == 0:
                 neighborhoods_all = neighborhoods
             else:
                 neighborhoods_all = np.r_[neighborhoods_all, neighborhoods]
-        return neighborhoods_all
+        self.neighbor_matrix = neighborhoods_all
 
-    def neighbor_to_tensor(self, neighborhoods):
+    def neighbor_to_tensor(self):
 
         nodes_features = pd.get_dummies(self.df_node_label.label,
                                         columns=self.feature_list,
@@ -298,7 +305,7 @@ class PatchyConverter(object):
         zero_features_for_padding_at_the_end = np.zeros((1, nodes_features.shape[1]), dtype=float)
         nodes_features = np.r_[nodes_features, zero_features_for_padding_at_the_end]
 
-        i_list = np.reshape(neighborhoods, [-1])
+        i_list = np.reshape(self.neighbor_matrix, [-1])
         the_place_of_zero_features_for_padding = i_list.max() + 1
         i_list = np.where(i_list < 0, the_place_of_zero_features_for_padding, i_list)
         ret = nodes_features[i_list]
@@ -322,16 +329,18 @@ class PatchyConverter(object):
             print('{} graph tensor non exisiting at : {}'.format(self.dataset_name,self.file_path_load))
             print('Create dictionary of graphs')
 
-            self.adj_coomatrix_by_graphId = self.create_adj_coomatrix_by_graphId()
+            self.create_adj_coomatrix_by_graphId()
             print('Canonical Labeling')
 
             #### ------>>>CHECK HERE
-            self.cano_label = self.canonical_labeling()
-            self.df_node_label = pd.concat([self.df_node_label, pd.Series(self.cano_label, dtype=int, name='cano_label')], axis=1)
+            #self.cano_label = self.canonical_labeling()
+            self.canonical_labeling()
+
+            #self.df_node_label = pd.concat([self.df_node_label, pd.Series(self.cano_label, dtype=int, name='cano_label')], axis=1)
             print('Getting the Neighboors ')
-            neighbor_matrix = self.get_neighbor_matrix(self.adj_coomatrix_by_graphId)
+            self.get_neighbor_matrix()
             print('Neighboors to Tensor')
-            result_tensor = self.neighbor_to_tensor(neighbor_matrix)
+            result_tensor = self.neighbor_to_tensor()
             self.patchy_tensor = result_tensor
             np.save(self.file_path_save,result_tensor)
 
