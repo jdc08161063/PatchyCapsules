@@ -31,7 +31,6 @@ from utils import plot_log,save_results_to_csv
 from capsulelayers import CapsuleLayer, PrimaryCap, Length, Mask
 
 sys.path.append('./PatchyTools/')
-from GraphConverter import GraphConverter
 from PatchyConverter import PatchyConverter
 
 from DropboxLoader import DropboxLoader

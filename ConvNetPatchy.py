@@ -24,7 +24,7 @@ from utils import save_results_to_csv
 
 from capsulelayers import CapsuleLayer, PrimaryCap, Length, Mask
 sys.path.append('./PatchyTools/')
-from GraphConverter import GraphConverter
+from PatchyConverter import PatchyConverter
 from DropboxLoader import DropboxLoader
 from CapsuleParameters import CapsuleParameters
 from CapsuleParameters import CapsuleTrainingParameters
@@ -98,7 +98,7 @@ if __name__ == "__main__":
     parser.add_argument('-n', help='name_of the dataset', default='MUTAG')
     #parser.add_argument('-w', help='width for patchy', default=18)
     parser.add_argument('-k', help='receptive field for patchy', default=10)
-    parser.add_argument('-e', help='number of epochs', default=200)
+    parser.add_argument('-e', help='number of epochs', default=400)
     parser.add_argument('-f', help='number of different folds', default=10)
     parser.add_argument('-s', dest='save', help='saving by default', action='store_true')
     parser.add_argument('-r', dest='relabelling', help='reshuffling takes place', action='store_true')
@@ -126,12 +126,12 @@ if __name__ == "__main__":
     # dataset_name = 'PTC_FM'
     # width = 25
     # receptive_field = 10
-    PatchyConverter = GraphConverter(dataset_name, receptive_field)
+    graph_converter = PatchyConverter(dataset_name, receptive_field)
     if relabeling:
-        PatchyConverter.relabel_graphs()
-    graph_tensor = PatchyConverter.graphs_to_Patchy_tensor()
+        graph_converter.relabel_graphs()
+    graph_tensor = graph_converter.graphs_to_Patchy_tensor()
 
-    avg_nodes_per_graph = PatchyConverter.avg_nodes_per_graph
+    avg_nodes_per_graph = graph_converter.avg_nodes_per_graph
 
     # Getting the labels:
     dropbox_loader = DropboxLoader(dataset_name)
