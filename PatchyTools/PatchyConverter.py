@@ -37,12 +37,15 @@ def dfadj_to_dict(df_adj):
     input: edges and labels
     output: dictionary. key is node_id and value is list of nodes which the node_id connects to with edges.
     '''
-    unique_nodes = np.unique( df_adj['from'].unique().tolist() + df_adj['to'].unique().tolist())
-    graph =defaultdict(list)
-    for key in unique_nodes:
-        graph[key] += df_adj.loc[df_adj['from']==key]['to'].values.tolist()
-        # graph[key] += df_adj.loc[df_adj['to']==key]['from'].values.tolist()
-    return graph
+    # unique_nodes = np.unique( df_adj['from'].unique().tolist() + df_adj['to'].unique().tolist())
+    # graph =defaultdict(list)
+    # for key in unique_nodes:
+    #     graph[key] += df_adj.loc[df_adj['from']==key]['to'].values.tolist()
+    #     # graph[key] += df_adj.loc[df_adj['to']==key]['from'].values.tolist()
+    # return graph
+    graph = nx.Graph()
+    graph.add_edges_from(df_adj.loc[:, ['from','to']].values)
+    return nx.to_dict_of_lists(graph)
 
 
 class PatchyConverter(object):
@@ -135,38 +138,6 @@ class PatchyConverter(object):
         return node_label_by_graphId
 
 
-    def relabel_nodes(self):
-
-        list_new_graphs = []
-        self.node_label_by_graphID_old = copy(self.node_label_by_graphID)
-        self.node_label_by_graphID = {}
-        self.relabel_by_graphId = {}
-        for i in self.graph_ids:
-            current_graph = self.node_label_by_graphID_old[i]
-            random.shuffle(current_graph.node.values)
-            self.node_label_by_graphID[i] = current_graph
-            #self.relabel_by_graphId()
-
-            #self.df_node_label = pd.concat(list_new_graphs)
-
-    def relabel_edge_list(self):
-        self.df_ajd_old = copy(self.df_adj)
-
-        new_old_node_label = pd.merge(self.df_node_label, self.df_node_label_old, left_index=True, right_index=True)
-        new_old_node_label = new_old_node_label.loc[:, ['node_y', 'node_x']]
-        new_old_node_label.rename(columns={'node_y': 'old_node', 'node_x': 'new_node'}, inplace=True)
-
-        new_adj = self.df_adj.merge(new_old_node_label, how='inner', left_on='from', right_on='old_node')
-        new_adj = new_adj.loc[:, ['to', 'new_node']]
-        new_adj.rename(columns={'new_node': 'from'}, inplace=True)
-        new_adj = new_adj.merge(new_old_node_label, how='inner', left_on='to', right_on='old_node')
-        new_adj = new_adj.loc[:, ['from', 'new_node']]
-        new_adj.rename(columns={'new_node': 'to'}, inplace=True)
-        self.df_adj = new_adj
-        #relabel_dict = dict(
-        #    pd.merge(self.df_node_label, self.df_node_label_old, left_index=True, right_index=True).loc[:, ['node_x', 'node_y']].values)
-        #self.df_adj.replace(relabel_dict, inplace = True)
-
     def relabel_graphs(self):
         # Reassign the dictionaries:
         self.adj_dict_by_graphId_old = copy(self.adj_dict_by_graphId)
@@ -229,7 +200,8 @@ class PatchyConverter(object):
             try:
                 nauty_graph = nauty.Graph(len(temp_graph_dict), adjacency_dict=temp_graph_dict)
             except:
-                missing = len(set(range(len(temp_graph_dict.keys()) + 1)).difference(set(temp_graph_dict.keys())))
+                #missing = len(set(range(len(temp_graph_dict.keys()) + 1)).difference(set(temp_graph_dict.keys())))
+                missing = self.node_label_by_graphId[k].shape[0] - len(temp_graph_dict.keys())
                 print('missing nodes in graph number {} :  {}'.format(k,missing))
                 nauty_graph = nauty.Graph(len(temp_graph_dict)+missing, adjacency_dict=temp_graph_dict)
                 #raise
