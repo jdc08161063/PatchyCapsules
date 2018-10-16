@@ -433,7 +433,7 @@ if __name__ == "__main__":
             #if i == 0:
             results_df.append(pd.DataFrame(patchy_classifier.results))
             #else:
-            print('Set of parameters {} trained '.format(i + 1))
+            print('Fold number {} trained '.format(j + 1))
 
 
 
