@@ -376,6 +376,7 @@ if __name__ == "__main__":
     # Training Hyperparameters:
 
     args_train = CapsuleTrainingParameters()
+    args_train.batch_size = 50
     if not os.path.exists(args_train.save_dir):
         os.makedirs(args_train.save_dir)
 

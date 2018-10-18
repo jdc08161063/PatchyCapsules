@@ -25,7 +25,7 @@ class CapsuleParameters(object):
 class CapsuleTrainingParameters(object):
     def __init__(self,
                  epochs=100,
-                 batch_size=100,
+                 batch_size=50,
                  lr=0.001,
                  lr_decay=0.9,
                  lam_recon=0.392,
