@@ -426,6 +426,10 @@ if __name__ == "__main__":
 
             patchy_classifier = GraphClassifier(input_shape)
             patchy_classifier.build_the_graph(capsule_params)
+            ##
+            #patchy_classifier.train_model.summary()
+
+            ##
             patchy_classifier.train(data, parameter_set)
 
             training_time.append(patchy_classifier.training_time)
