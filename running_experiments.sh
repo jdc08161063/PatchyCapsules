@@ -8,8 +8,8 @@ k=10
 
 python GraphClassifier.py -n $dataset -k $k -e $epochs -f 3 -r
 python GraphClassifier.py -n $dataset -k $k -e $epochs -f 3 -nr
-#python ConvNetPatchy.py -n $dataset -k $k -e $epochs -r
-#python ConvNetPatchy.py -n $dataset -k $k -e $epochs -nr
+python ConvNetPatchy.py -n $dataset -k $k -e $epochs -r
+python ConvNetPatchy.py -n $dataset -k $k -e $epochs -nr
 
 
 #python GraphClassifier.py -dataset_name 'DD' -w '284' -k 10 -r -exp 'no_relabel'

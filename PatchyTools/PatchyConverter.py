@@ -220,6 +220,9 @@ class PatchyConverter(object):
         Input :
         return: A 2D matrix : (Node number) x (RECEPTIVE_FIELD_SIZE_K).
         """
+        if not hasattr(self,'adj_coomatrix_by_graphId'):
+            self.create_adj_coomatrix_by_graphId()
+
 
         for l_ind, l in enumerate(self.graph_ids):
             adjacency = self.adj_coomatrix_by_graphId[l]
@@ -231,7 +234,10 @@ class PatchyConverter(object):
             neighborhoods.fill(-1)
 
             df_sequence = self.node_label_by_graphId[l]
-            df_sequence = df_sequence.sort_values(by='cano_label')
+            try:
+                df_sequence = df_sequence.sort_values(by='cano_label')
+            except KeyError:
+                self.canonical_labeling()
             #smallest_node_id = df_sequence.node.min()
 
             # CUT GRAPH BY THRESHOLD of cano_label ''' Top width w elements of V according to labeling  '''
