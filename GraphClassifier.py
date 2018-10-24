@@ -426,7 +426,7 @@ if __name__ == "__main__":
             input_shape = x_train.shape[1:]
             parameter_set.add_fold(i)
 
-            patchy_classifier = GraphClassifier(input_shape)
+            patchy_classifier = GraphClassifier(input_shape,n_class)
             patchy_classifier.build_the_graph(capsule_params)
             ##
             #patchy_classifier.train_model.summary()

@@ -96,7 +96,7 @@ if __name__ == "__main__":
     # Arguments:
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', help='name_of the dataset', default='MUTAG')
-    #parser.add_argument('-w', help='width for patchy', default=18)
+    parser.add_argument('-c', help='number of classes', default=2)
     parser.add_argument('-k', help='receptive field for patchy', default=10)
     parser.add_argument('-e', help='number of epochs', default=400)
     parser.add_argument('-f', help='number of different folds', default=10)
@@ -114,7 +114,7 @@ if __name__ == "__main__":
 
     # Arguments:
     dataset_name = args.n
-    #width = int(args.w)
+    n_class = int(args.c)
     receptive_field = int(args.k)
     epochs = int(args.e)
     n_folds = int(args.f)
