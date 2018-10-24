@@ -43,7 +43,7 @@ RESULTS_PATH = os.path.join(DIR_PATH, 'Results/CapsuleSans/CNN_Caps_comparison.c
 
 
 class GraphClassifier(object):
-    def __init__(self, input_shape, n_class=2, routings=3):
+    def __init__(self, input_shape, n_class=2,   routings=3):
         # Fixed initialization parameters:
         self.input_shape = input_shape
         self.n_class = n_class
@@ -286,6 +286,7 @@ if __name__ == "__main__":
     #parser.add_argument('-w', help='width for patchy', default=18)
     parser.add_argument('-k', help='receptive field for patchy', default=10)
     parser.add_argument('-e', help='number of epochs', default=400)
+    parser.add_argument('-c', help='number of classes', default=2)
     parser.add_argument('-f', help='number of different folds', default=10)
     parser.add_argument('-s', dest='save', help='saving by default', action='store_true')
     parser.add_argument('-r', dest='relabelling', help='reshuffling takes place', action='store_true')
@@ -306,6 +307,7 @@ if __name__ == "__main__":
     epochs = int(args.e)
     n_folds = int(args.f)
     save = args.save
+    n_class = int(args.c)
 
     # print('relabelling:')
     # print('')
