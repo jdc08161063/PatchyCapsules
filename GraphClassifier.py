@@ -286,7 +286,7 @@ if __name__ == "__main__":
     #parser.add_argument('-w', help='width for patchy', default=18)
     parser.add_argument('-k', help='receptive field for patchy', default=10)
     parser.add_argument('-e', help='number of epochs', default=400)
-    parser.add_argument('-c', help='number of classes', default=2)
+    #parser.add_argument('-c', help='number of classes', default=2)
     parser.add_argument('-f', help='number of different folds', default=10)
     parser.add_argument('-s', dest='save', help='saving by default', action='store_true')
     parser.add_argument('-r', dest='relabelling', help='reshuffling takes place', action='store_true')
@@ -307,7 +307,7 @@ if __name__ == "__main__":
     epochs = int(args.e)
     n_folds = int(args.f)
     save = args.save
-    n_class = int(args.c)
+    #n_class = int(args.c)
 
     # print('relabelling:')
     # print('')
@@ -329,6 +329,7 @@ if __name__ == "__main__":
     dropbox_loader = DropboxLoader(dataset_name)
     graph_labels = dropbox_loader.get_graph_label()
     graph_labels = np.array(graph_labels.graph_label)
+    n_class = len(np.unique(graph_labels))
 
     # Capsule Architecture Parameters:
     capsule_params = CapsuleParameters()
