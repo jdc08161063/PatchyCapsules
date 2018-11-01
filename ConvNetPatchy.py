@@ -31,7 +31,7 @@ from CapsuleParameters import CapsuleTrainingParameters
 
 
 DIR_PATH = os.environ['GAMMA_DATA_ROOT']
-RESULTS_PATH = os.path.join(DIR_PATH, 'Results/CapsuleSans/CNN_Caps_comparison.csv')
+RESULTS_PATH = os.path.join(DIR_PATH, 'Results/CapsuleSans/CNN_Caps_comparison_bc.csv')
 
 
 class AccuracyHistory(keras.callbacks.Callback):
@@ -71,7 +71,7 @@ class ConvNetPatchy(object):
         self.model.add(Dropout(0.5))
         self.model.add(Dense(self.n_class, activation='softmax'))
 
-    def train_model(self, epochs=200, batch_size=100, verbose=0):
+    def train_model(self, epochs=200, batch_size=100, verbose=1):
         start = time()
         self.epochs = epochs
         self.history = AccuracyHistory()
@@ -98,6 +98,7 @@ if __name__ == "__main__":
     parser.add_argument('-n', help='name_of the dataset', default='MUTAG')
     parser.add_argument('-c', help='number of classes', default=2)
     parser.add_argument('-k', help='receptive field for patchy', default=10)
+    parser.add_argument('-st', help='stride', default=1)
     parser.add_argument('-e', help='number of epochs', default=400)
     parser.add_argument('-f', help='number of different folds', default=10)
     parser.add_argument('-s', dest='save', help='saving by default', action='store_true')
@@ -116,6 +117,7 @@ if __name__ == "__main__":
     dataset_name = args.n
     n_class = int(args.c)
     receptive_field = int(args.k)
+    stride = int(args.st)
     epochs = int(args.e)
     n_folds = int(args.f)
     relabeling = args.relabelling
@@ -126,10 +128,10 @@ if __name__ == "__main__":
     # dataset_name = 'PTC_FM'
     # width = 25
     # receptive_field = 10
-    graph_converter = PatchyConverter(dataset_name, receptive_field)
+    graph_converter = PatchyConverter(dataset_name, receptive_field, stride)
     if relabeling:
         graph_converter.relabel_graphs()
-    graph_tensor = graph_converter.graphs_to_Patchy_tensor()
+    graph_tensor = graph_converter.graphs_to_patchy_tensor()
 
     avg_nodes_per_graph = graph_converter.avg_nodes_per_graph
 

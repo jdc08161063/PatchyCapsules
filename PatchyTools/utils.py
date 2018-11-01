@@ -16,3 +16,19 @@ def dfadj_to_dict(df_adj):
 
 
 
+def indices_to_one_hot(number, nb_classes, label_dummy=-1):
+    """Convert an iterable of indices to one-hot encoded labels."""
+
+    if number == label_dummy:
+        return np.zeros(nb_classes)
+    else:
+        return np.eye(nb_classes)[number]
+
+
+
+def progress_bar(value, endvalue, bar_length=20):
+    percent = float(value) / endvalue
+    arrow = '-' * int(round(percent * bar_length)-1) + '>'
+    spaces = ' ' * (bar_length - len(arrow))
+    sys.stdout.write("\rPercent complete: [{0}] {1}%".format(arrow + spaces, int(round(percent * 100))))
+    sys.stdout.flush()

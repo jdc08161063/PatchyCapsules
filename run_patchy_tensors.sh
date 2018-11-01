@@ -3,8 +3,13 @@
 
 dataset=$1
 
-python create_patchy_tensor.py -n $dataset -r
-python create_patchy_tensor.py -n $dataset -nr
+#python create_patchy_tensor.py -n $dataset -r
+#python create_patchy_tensor.py -n $dataset -nr
+
+
+python create_patchy_bc_tensor.py -n $dataset -r
+python create_patchy_bc_tensor.py -n $dataset -nr
+
 
 
 
