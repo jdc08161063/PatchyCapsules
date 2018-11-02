@@ -2,13 +2,19 @@
 
 from networkx import nx
 from networkx import convert_node_labels_to_integers
-from pynauty.graph import canonical_labeling
-import pynauty as nauty
+try:
+    import pynauty as nauty
+    from pynauty.graph import canonical_labeling
+except:
+    print('Pynauty is not installed in this environment')
+from scipy.sparse import coo_matrix
+from DropboxLoader import DropboxLoader
+
 import copy
 
 import numpy as np
 import time
-import tensorflow as tf
+
 import utils
 
 
