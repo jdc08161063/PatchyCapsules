@@ -19,3 +19,4 @@ python GraphClassifier.py -n $dataset -k $k -e $epochs -nr
 
 
 #python ConvNetPatchy.py -n $dataset -k $k -e $epochs -r
+# python ConvNetPatchy.py -n $NCI109 -k 10 -e 400 -r
