@@ -71,7 +71,7 @@ class ConvNetPatchy(object):
         self.model.add(Dropout(0.5))
         self.model.add(Dense(self.n_class, activation='softmax'))
 
-    def train_model(self, epochs=200, batch_size=100, verbose=1):
+    def train_model(self, epochs=200, batch_size=100, verbose=0):
         start = time()
         self.epochs = epochs
         self.history = AccuracyHistory()
