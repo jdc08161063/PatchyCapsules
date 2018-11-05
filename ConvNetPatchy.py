@@ -31,7 +31,7 @@ from CapsuleParameters import CapsuleTrainingParameters
 
 
 DIR_PATH = os.environ['GAMMA_DATA_ROOT']
-RESULTS_PATH = os.path.join(DIR_PATH, 'Results/CapsuleSans/CNN_Caps_comparison_bc.csv')
+RESULTS_PATH = os.path.join(DIR_PATH, 'Results/CapsuleSans/CNN_Caps_comparison.csv')
 
 
 class AccuracyHistory(keras.callbacks.Callback):
@@ -101,6 +101,7 @@ if __name__ == "__main__":
     parser.add_argument('-st', help='stride', default=1)
     parser.add_argument('-e', help='number of epochs', default=400)
     parser.add_argument('-f', help='number of different folds', default=10)
+    parser.add_argument('-lp', help='labelling procedure', default='bc')
     parser.add_argument('-s', dest='save', help='saving by default', action='store_true')
     parser.add_argument('-r', dest='relabelling', help='reshuffling takes place', action='store_true')
     parser.add_argument('-nr', dest='relabelling', help='no reshuffling takes place', action='store_false')
@@ -121,7 +122,13 @@ if __name__ == "__main__":
     epochs = int(args.e)
     n_folds = int(args.f)
     relabeling = args.relabelling
+    labelling = args.lp
     save = args.save
+
+    if labelling == 'bc':
+        RESULTS_PATH = RESULTS_PATH + '_bc'
+
+    print('Results saved to {}'.format(RESULTS_PATH))
 
 
     # Getting the data:
@@ -131,7 +138,7 @@ if __name__ == "__main__":
     graph_converter = PatchyConverter(dataset_name, receptive_field, stride)
     if relabeling:
         graph_converter.relabel_graphs()
-    graph_tensor = graph_converter.graphs_to_patchy_tensor()
+    graph_tensor = graph_converter.graphs_to_patchy_tensor(labelling)
 
     avg_nodes_per_graph = graph_converter.avg_nodes_per_graph
 

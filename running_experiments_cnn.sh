@@ -4,13 +4,14 @@
 
 dataset=$1
 epochs=$2
+labelling=$3
 k=10
 
-python ConvNetPatchy.py -n $dataset -k $k -e $epochs -r
-python ConvNetPatchy.py -n $dataset -k $k -e $epochs -nr
+python ConvNetPatchy.py -n $dataset -k $k -e $epochs -lp $labelling -r
+python ConvNetPatchy.py -n $dataset -k $k -e $epochs -lp $labelling -nr
 
-python GraphClassifier.py -n $dataset -k $k -e $epochs -r
-python GraphClassifier.py -n $dataset -k $k -e $epochs -nr
+#python GraphClassifier.py -n $dataset -k $k -e $epochs -r
+#python GraphClassifier.py -n $dataset -k $k -e $epochs -nr
 
 
 
