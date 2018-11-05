@@ -235,7 +235,7 @@ class GraphClassifier(object):
                                  # validation_data=[self.x_test, self.y_test], #[self.y_test, self.x_test]],
                                  # callbacks=[log, tb, checkpoint, lr_decay,TQDMCallback()],
                                  callbacks=[log, tb, checkpoint, lr_decay],
-                                 verbose=args.verbose)
+                                 verbose=0)
             # print('Evaluation: ',self.train_model.predict([[self.x_test, self.y_test], [self.y_test, self.x_test]]))
         else:
             # Begin: Training with data augmentation ---------------------------------------------------------------------#
@@ -247,7 +247,7 @@ class GraphClassifier(object):
                 validation_data=[[self.x_test, self.y_test], [self.y_test, self.x_test]],
                 callbacks=[log, tb, checkpoint, lr_decay])
             # End: Training with data augmentation -----------------------------------------------------------------------#
-            self.train_model.save_weights(args.save_dir + '/trained_model.h5')
+            #self.train_model.save_weights(args.save_dir + '/trained_model.h5')
         print('Trained model saved to \'%s/trained_model.h5\'' % args.save_dir)
 
 
