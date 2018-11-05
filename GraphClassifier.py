@@ -39,7 +39,7 @@ from CapsuleParameters import CapsuleTrainingParameters
 #from ConvNetPatchy import AccuracyHistory
 
 DIR_PATH = os.environ['GAMMA_DATA_ROOT']
-RESULTS_PATH = os.path.join(DIR_PATH, 'Results/CapsuleSans/CNN_Caps_comparison_bc.csv')
+RESULTS_PATH = os.path.join(DIR_PATH, 'Results/CapsuleSans/CNN_Caps_comparison.csv')
 
 
 class GraphClassifier(object):
@@ -313,9 +313,10 @@ if __name__ == "__main__":
     labelling = args.lp
 
     if labelling == 'bc':
-        RESULTS_PATH = RESULTS_PATH + '_bc'
+        RESULTS_PATH = os.path.join(DIR_PATH, 'Results/CapsuleSans/CNN_Caps_comparison_bc.csv')
 
     print('Results saved to {}'.format(RESULTS_PATH))
+
 
     # dataset_name = 'MUTAG'
     # width = 18
@@ -326,7 +327,7 @@ if __name__ == "__main__":
     if relabelling:
         graph_converter.relabel_graphs()
 
-    graph_tensor = graph_converter.graphs_to_patchy_tensor()
+    graph_tensor = graph_converter.graphs_to_patchy_tensor(labelling)
     avg_nodes_per_graph = graph_converter.avg_nodes_per_graph
 
     # Getting the labels:

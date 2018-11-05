@@ -11,4 +11,5 @@ tar -xvzf dropbox.tar.gz
 
 #ls -n
 
-#export GAMMA_DATA_ROOT="~/.gamma_link/"
+ln -s Dropbox/ResearchDepartment/ResearchProjects/GAMMA/Data/ ~/.gamma_link
+echo 'export GAMMA_DATA_ROOT="~/.gamma_link/"' >> ~/.bashrc

@@ -126,7 +126,7 @@ if __name__ == "__main__":
     save = args.save
 
     if labelling == 'bc':
-        RESULTS_PATH = RESULTS_PATH + '_bc'
+        RESULTS_PATH = os.path.join(DIR_PATH, 'Results/CapsuleSans/CNN_Caps_comparison_bc.csv')
 
     print('Results saved to {}'.format(RESULTS_PATH))
 
