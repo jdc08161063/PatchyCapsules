@@ -289,6 +289,7 @@ if __name__ == "__main__":
     parser.add_argument('-e', help='number of epochs', default=400)
     #parser.add_argument('-c', help='number of classes', default=2)
     parser.add_argument('-f', help='number of different folds', default=10)
+    parser.add_argument('-lp', help='labelling procedure', default='bc')
     parser.add_argument('-s', dest='save', help='saving by default', action='store_true')
     parser.add_argument('-r', dest='relabelling', help='reshuffling takes place', action='store_true')
     parser.add_argument('-nr', dest='relabelling', help='no reshuffling takes place', action='store_false')
@@ -309,11 +310,12 @@ if __name__ == "__main__":
     epochs = int(args.e)
     n_folds = int(args.f)
     save = args.save
-    #n_class = int(args.c)
+    labelling = args.lp
 
-    # print('relabelling:')
-    # print('')
-    # print(relabeling)
+    if labelling == 'bc':
+        RESULTS_PATH = RESULTS_PATH + '_bc'
+
+    print('Results saved to {}'.format(RESULTS_PATH))
 
     # dataset_name = 'MUTAG'
     # width = 18
