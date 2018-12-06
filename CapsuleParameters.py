@@ -59,6 +59,7 @@ class CapsuleTrainingParameters(object):
         self.plot_log = plot_log
         self.log_filename = log_filename
         self.verbose = verbose
+        self.fold = 1
 
     def generate_params_df(self):
         dict_params = {}

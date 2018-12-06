@@ -108,7 +108,7 @@ class PatchyConverter(object):
 
 
     def import_graph_data(self):
-        graph_data = DropboxLoader(self.dataset_name)
+        self.graph_data = graph_data = DropboxLoader(self.dataset_name)
         self.df_adj = graph_data.get_adj()
         self.df_node_label = graph_data.get_node_label()
         self.df_node_label = pd.concat([self.df_node_label,
@@ -475,10 +475,11 @@ class PatchyConverter(object):
 
 
     def get_nx_graph(self,df_nodes, df_edges):
-        graph = nx.Graph()
-        graph.add_nodes_from(self.gen_iter_attributes_dict(df_nodes))
-        graph.add_edges_from(df_edges)
-        return graph
+        nx_graph = nx.Graph()
+        nx_graph.add_nodes_from(self.gen_iter_attributes_dict(df_nodes))
+        nx_graph.add_edges_from(df_edges)
+
+        return nx_graph
 
     def create_nx_graphs(self):
         nx_graphs = {}

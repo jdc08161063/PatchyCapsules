@@ -97,17 +97,17 @@ class GraphClassifier(object):
         self.import_nn_parameters(params)
 
         start = time()
-        x = layers.Input(shape=self.input_shape)
+        self.x = layers.Input(shape=self.input_shape)
 
         # Layer 1: Just a conventional Conv2D layer
         # params_conv_layer = self.params[0]
 
-        conv1 = layers.Conv2D(filters=self.conv_layer['filters'],
+        self.conv1 = layers.Conv2D(filters=self.conv_layer['filters'],
                               kernel_size=self.conv_layer['kernel_size'],
                               strides=self.conv_layer['strides'],
                               padding=self.conv_layer['padding'],
                               activation=self.conv_layer['activation'],
-                              name=self.conv_layer['activation'])(x)
+                              name=self.conv_layer['activation'])(self.x)
         # filters=128,
         # kernel_size=9,
         # strides=1,
@@ -116,7 +116,7 @@ class GraphClassifier(object):
         # name='conv1')(x)
 
         # Layer 2: Conv2D layer with `squash` activation, then reshape to [None, num_capsule, dim_capsule]
-        primarycaps = PrimaryCap(conv1,
+        self.primarycaps = PrimaryCap(self.conv1,
                                  dim_capsule=self.primary_caps_layer['dim_capsule'],
                                  n_channels=self.primary_caps_layer['n_channels'],
                                  kernel_size=self.primary_caps_layer['kernel_size'],
@@ -128,21 +128,33 @@ class GraphClassifier(object):
         # strides=2,
         # padding='valid')
 
+
+        # Adding one more Layer
+        # self.secondcaps = CapsuleLayer(num_capsule=10,
+        #                          dim_capsule=20,
+        #                          routings=self.routings,
+        #                          name='secondary_caps')(self.primarycaps)
+
+
         # Layer 3: Capsule layer. Routing algorithm works here.
-        digitcaps = CapsuleLayer(num_capsule=self.n_class,
+        self.graphcaps = CapsuleLayer(num_capsule=self.n_class,
                                  dim_capsule=self.digit_caps_layer['dim_capsule'],
                                  # /dim_capsule = 16
                                  routings=self.routings,
-                                 name=self.digit_caps_layer['name'])(primarycaps)
+                                 name=self.digit_caps_layer['name'])(self.primarycaps) #(self.secondcaps)
 
         # Layer 4: This is an auxiliary layer to replace each capsule with its length. Just to match the true label's shape.
         # If using tensorflow, this will not be necessary. :)
-        out_caps = Length(name='capsnet')(digitcaps)
+
+
+
+
+        self.out_caps = Length(name='capsnet')(self.graphcaps)
 
         # Decoder network.
         y = layers.Input(shape=(self.n_class,))
-        masked_by_y = Mask()([digitcaps, y])  # The true label is used to mask the output of capsule layer. For training
-        masked = Mask()(digitcaps)  # Mask using the capsule with maximal length. For prediction
+        masked_by_y = Mask()([self.graphcaps, y])  # The true label is used to mask the output of capsule layer. For training
+        masked = Mask()(self.graphcaps)  # Mask using the capsule with maximal length. For prediction
 
         # Shared Decoder model in training and prediction
         decoder = models.Sequential(name='decoder')
@@ -157,14 +169,14 @@ class GraphClassifier(object):
         decoder.add(layers.Reshape(target_shape=self.input_shape, name='out_recon'))
 
         # Models for training and evaluation (prediction)
-        train_model = models.Model([x, y], [out_caps, decoder(masked_by_y)])
-        eval_model = models.Model(x, [out_caps, decoder(masked)])
+        train_model = models.Model([self.x, y], [self.out_caps, decoder(masked_by_y)])
+        eval_model = models.Model(self.x, [self.out_caps, decoder(masked)])
 
         # manipulate model
         noise = layers.Input(shape=(self.n_class, self.digit_caps_layer['dim_capsule']))  # 16
-        noised_digitcaps = layers.Add()([digitcaps, noise])
-        masked_noised_y = Mask()([noised_digitcaps, y])
-        manipulate_model = models.Model([x, y, noise], decoder(masked_noised_y))
+        noised_graphcaps = layers.Add()([self.graphcaps, noise])
+        masked_noised_y = Mask()([noised_graphcaps, y])
+        manipulate_model = models.Model([self.x, y, noise], decoder(masked_noised_y))
         self.train_model = train_model
         self.eval_model = eval_model
         self.manipulate_model = manipulate_model
@@ -177,9 +189,13 @@ class GraphClassifier(object):
         :param y_true: [None, n_classes]
         :param y_pred: [None, num_capsule]
         :return: a scalar loss value.
+
         """
+
+        #if self.n_class >2 :
         L = y_true * K.square(K.maximum(0., 0.9 - y_pred)) + \
             0.5 * (1 - y_true) * K.square(K.maximum(0., y_pred - 0.1))
+
 
         return K.mean(K.sum(L, 1))
 
@@ -220,10 +236,19 @@ class GraphClassifier(object):
 
         # compile the model
 
+        # if self.n_class == 2:
+        #
+        #     self.train_model.compile(optimizer=optimizers.Adam(lr=args.lr),
+        #                              loss=['categorical_crossentropy', 'mse'],
+        #                              loss_weights=[1., args.lam_recon],
+        #                              metrics={'capsnet': 'accuracy'})
+        #
+        # else:
+
         self.train_model.compile(optimizer=optimizers.Adam(lr=args.lr),
-                                 loss=[self.margin_loss, 'mse'],
-                                 loss_weights=[1., args.lam_recon],
-                                 metrics={'capsnet': 'accuracy'})
+                                     loss=[self.margin_loss, 'mse'],
+                                     loss_weights=[1., args.lam_recon],
+                                     metrics={'capsnet': 'accuracy'})
 
         # Training without data augmentation:
         # print('shape validation : ', np.array([[self.x_test, self.y_test], [self.y_test, self.x_test]]).shape)
