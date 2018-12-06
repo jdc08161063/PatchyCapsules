@@ -1,8 +1,11 @@
-numpy==1.14.2
 six==1.10.0
 tqdm==4.23.4
-networkx==2.0
+networkx==2.2
+matplotlib==3.0.0
+numpy==1.15.3
+pandas==0.23.4
+plotly==3.3.0
 scipy==1.0.0
-pandas==0.23.0
-matplotlib==2.2.0
-tensorflow==1.6.0
+Pillow==5.3.0
+python_igraph==0.7.1.post6
+scikit_learn==0.20.0

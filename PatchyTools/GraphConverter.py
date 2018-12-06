@@ -57,6 +57,7 @@ class GraphConverter(object):
         # Generates the file path to dropbox
         print('getting width')
         self.width = int(np.ceil(self.get_average_num_nodes()))
+        print('width: {}'.format(self.width))
         self.generate_file_path(file_to_save)
 
     def generate_file_path(self,save_name=''):
@@ -100,13 +101,26 @@ class GraphConverter(object):
 
     def relabel_edge_list(self):
         self.df_ajd_old = copy(self.df_adj)
-        relabel_dict = dict(
-            pd.merge(self.df_node_label, self.df_node_label_old, left_index=True, right_index=True).loc[:, ['node_x', 'node_y']].values)
-        self.df_adj.replace(relabel_dict, inplace = True)
+
+        new_old_node_label = pd.merge(self.df_node_label, self.df_node_label_old, left_index=True, right_index=True)
+        new_old_node_label = new_old_node_label.loc[:, ['node_y', 'node_x']]
+        new_old_node_label.rename(columns={'node_y': 'old_node', 'node_x': 'new_node'}, inplace=True)
+
+        new_adj = self.df_adj.merge(new_old_node_label, how='inner', left_on='from', right_on='old_node')
+        new_adj = new_adj.loc[:, ['to', 'new_node']]
+        new_adj.rename(columns={'new_node': 'from'}, inplace=True)
+        new_adj = new_adj.merge(new_old_node_label, how='inner', left_on='to', right_on='old_node')
+        new_adj = new_adj.loc[:, ['from', 'new_node']]
+        new_adj.rename(columns={'new_node': 'to'}, inplace=True)
+        self.df_adj = new_adj
+        #relabel_dict = dict(
+        #    pd.merge(self.df_node_label, self.df_node_label_old, left_index=True, right_index=True).loc[:, ['node_x', 'node_y']].values)
+        #self.df_adj.replace(relabel_dict, inplace = True)
 
     def relabel_graphs(self):
         self.relabel_nodes()
         self.relabel_edge_list()
+        self.adj_dict_by_graphId = self.create_adj_dict_by_graphId()
         self.generate_file_path(GRAPH_RELABEL_NAME)
 
     def get_smallest_node_id_from_adj(self, df_adj):
@@ -119,12 +133,29 @@ class GraphConverter(object):
         output: graphID and the adj matrix corresponding to that graph
         '''
         adj_dict_by_graphId = {}
+        node_graph_id = self.df_node_label.loc[:, ['node', 'graph_ind']]
+        adj_graph_ind = self.df_adj.merge(node_graph_id, how='inner', left_on='from', right_on='node')
+        adj_graph_ind = adj_graph_ind.loc[:, ['from', 'to', 'graph_ind']]
 
-        for l in self.graph_ids:
-            df_subset_adj = get_subset_adj(self.df_adj, self.df_node_label, graph_label_num=l)
+        for graph_index in self.graph_ids:
+            #df_subset_adj = get_subset_adj(self.df_adj, self.df_node_label, graph_label_num=l)
+            df_subset_adj = copy(adj_graph_ind[adj_graph_ind['graph_ind']==graph_index])
             smallest_node_id = self.get_smallest_node_id_from_adj(df_subset_adj)
-            df_subset_adj -= smallest_node_id
-            adj_dict_by_graphId[l] = df_subset_adj
+
+            #df_subset_adj['from'] = df_subset_adj['from'].map(lambda a: a - smallest_node_id)
+            #df_subset_adj.loc[:,'from'] = df_subset_adj.loc[:,'from'] -smallest_node_id
+            #df_subset_adj.loc[:, 'to'] = df_subset_adj.loc[:, 'to'] - smallest_node_id
+            #df_subset_adj['to'] = df_subset_adj['to'].map(lambda a: a - smallest_node_id)
+            #df_subset_adj.from = df_subset_adj.from - smallest_node_id
+            #df_subset_adj.to = df_subset_adj.to -smallest_node_id
+            #df_subset_adj.loc[:,'from'] = [i - smallest_node_id for i in df_subset_adj.loc[:,'from'].values]
+            #df_subset_adj.loc[:,'to'] = [i - smallest_node_id for i in df_subset_adj.loc[:,'to'].values]
+
+            df_subset_adj['from'] = df_subset_adj['from'].apply(lambda x: x-smallest_node_id)
+            df_subset_adj['to'] = df_subset_adj['to'].apply(lambda x: x - smallest_node_id)
+
+            adj_dict_by_graphId[graph_index] = df_subset_adj
+
         return adj_dict_by_graphId
 
 
@@ -271,8 +302,10 @@ class GraphConverter(object):
             self.adj_dict_by_graphId = self.create_adj_dict_by_graphId()
         self.nodes_per_graph = []
         for graph_key in self.graph_ids:
-            adj_dict = self.adj_dict_by_graphId[graph_key]
-            self.nodes_per_graph.append(len(np.unique(adj_dict.values)))
+            #adj_dict = self.adj_dict_by_graphId[graph_key]
+            #self.nodes_per_graph.append(len(np.unique(adj_dict.values)))
+            num_nodes = len(self.df_node_label[self.df_node_label['graph_ind']==graph_key].node.tolist())
+            self.nodes_per_graph.append(num_nodes)
         self.avg_nodes_per_graph = np.mean(self.nodes_per_graph)
         return self.avg_nodes_per_graph
 

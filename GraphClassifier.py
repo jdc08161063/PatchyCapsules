@@ -31,7 +31,8 @@ from utils import plot_log,save_results_to_csv
 from capsulelayers import CapsuleLayer, PrimaryCap, Length, Mask
 
 sys.path.append('./PatchyTools/')
-from GraphConverter import GraphConverter
+from PatchyConverter import PatchyConverter
+
 from DropboxLoader import DropboxLoader
 from CapsuleParameters import CapsuleParameters
 from CapsuleParameters import CapsuleTrainingParameters
@@ -42,7 +43,7 @@ RESULTS_PATH = os.path.join(DIR_PATH, 'Results/CapsuleSans/CNN_Caps_comparison.c
 
 
 class GraphClassifier(object):
-    def __init__(self, input_shape, n_class=2, routings=3):
+    def __init__(self, input_shape, n_class=2,   routings=3):
         # Fixed initialization parameters:
         self.input_shape = input_shape
         self.n_class = n_class
@@ -96,17 +97,17 @@ class GraphClassifier(object):
         self.import_nn_parameters(params)
 
         start = time()
-        x = layers.Input(shape=self.input_shape)
+        self.x = layers.Input(shape=self.input_shape)
 
         # Layer 1: Just a conventional Conv2D layer
         # params_conv_layer = self.params[0]
 
-        conv1 = layers.Conv2D(filters=self.conv_layer['filters'],
+        self.conv1 = layers.Conv2D(filters=self.conv_layer['filters'],
                               kernel_size=self.conv_layer['kernel_size'],
                               strides=self.conv_layer['strides'],
                               padding=self.conv_layer['padding'],
                               activation=self.conv_layer['activation'],
-                              name=self.conv_layer['activation'])(x)
+                              name=self.conv_layer['activation'])(self.x)
         # filters=128,
         # kernel_size=9,
         # strides=1,
@@ -115,7 +116,7 @@ class GraphClassifier(object):
         # name='conv1')(x)
 
         # Layer 2: Conv2D layer with `squash` activation, then reshape to [None, num_capsule, dim_capsule]
-        primarycaps = PrimaryCap(conv1,
+        self.primarycaps = PrimaryCap(self.conv1,
                                  dim_capsule=self.primary_caps_layer['dim_capsule'],
                                  n_channels=self.primary_caps_layer['n_channels'],
                                  kernel_size=self.primary_caps_layer['kernel_size'],
@@ -127,21 +128,33 @@ class GraphClassifier(object):
         # strides=2,
         # padding='valid')
 
+
+        # Adding one more Layer
+        # self.secondcaps = CapsuleLayer(num_capsule=10,
+        #                          dim_capsule=20,
+        #                          routings=self.routings,
+        #                          name='secondary_caps')(self.primarycaps)
+
+
         # Layer 3: Capsule layer. Routing algorithm works here.
-        digitcaps = CapsuleLayer(num_capsule=self.n_class,
+        self.graphcaps = CapsuleLayer(num_capsule=self.n_class,
                                  dim_capsule=self.digit_caps_layer['dim_capsule'],
                                  # /dim_capsule = 16
                                  routings=self.routings,
-                                 name=self.digit_caps_layer['name'])(primarycaps)
+                                 name=self.digit_caps_layer['name'])(self.primarycaps) #(self.secondcaps)
 
         # Layer 4: This is an auxiliary layer to replace each capsule with its length. Just to match the true label's shape.
         # If using tensorflow, this will not be necessary. :)
-        out_caps = Length(name='capsnet')(digitcaps)
+
+
+
+
+        self.out_caps = Length(name='capsnet')(self.graphcaps)
 
         # Decoder network.
         y = layers.Input(shape=(self.n_class,))
-        masked_by_y = Mask()([digitcaps, y])  # The true label is used to mask the output of capsule layer. For training
-        masked = Mask()(digitcaps)  # Mask using the capsule with maximal length. For prediction
+        masked_by_y = Mask()([self.graphcaps, y])  # The true label is used to mask the output of capsule layer. For training
+        masked = Mask()(self.graphcaps)  # Mask using the capsule with maximal length. For prediction
 
         # Shared Decoder model in training and prediction
         decoder = models.Sequential(name='decoder')
@@ -156,14 +169,14 @@ class GraphClassifier(object):
         decoder.add(layers.Reshape(target_shape=self.input_shape, name='out_recon'))
 
         # Models for training and evaluation (prediction)
-        train_model = models.Model([x, y], [out_caps, decoder(masked_by_y)])
-        eval_model = models.Model(x, [out_caps, decoder(masked)])
+        train_model = models.Model([self.x, y], [self.out_caps, decoder(masked_by_y)])
+        eval_model = models.Model(self.x, [self.out_caps, decoder(masked)])
 
         # manipulate model
         noise = layers.Input(shape=(self.n_class, self.digit_caps_layer['dim_capsule']))  # 16
-        noised_digitcaps = layers.Add()([digitcaps, noise])
-        masked_noised_y = Mask()([noised_digitcaps, y])
-        manipulate_model = models.Model([x, y, noise], decoder(masked_noised_y))
+        noised_graphcaps = layers.Add()([self.graphcaps, noise])
+        masked_noised_y = Mask()([noised_graphcaps, y])
+        manipulate_model = models.Model([self.x, y, noise], decoder(masked_noised_y))
         self.train_model = train_model
         self.eval_model = eval_model
         self.manipulate_model = manipulate_model
@@ -176,9 +189,13 @@ class GraphClassifier(object):
         :param y_true: [None, n_classes]
         :param y_pred: [None, num_capsule]
         :return: a scalar loss value.
+
         """
+
+        #if self.n_class >2 :
         L = y_true * K.square(K.maximum(0., 0.9 - y_pred)) + \
             0.5 * (1 - y_true) * K.square(K.maximum(0., y_pred - 0.1))
+
 
         return K.mean(K.sum(L, 1))
 
@@ -219,10 +236,19 @@ class GraphClassifier(object):
 
         # compile the model
 
+        # if self.n_class == 2:
+        #
+        #     self.train_model.compile(optimizer=optimizers.Adam(lr=args.lr),
+        #                              loss=['categorical_crossentropy', 'mse'],
+        #                              loss_weights=[1., args.lam_recon],
+        #                              metrics={'capsnet': 'accuracy'})
+        #
+        # else:
+
         self.train_model.compile(optimizer=optimizers.Adam(lr=args.lr),
-                                 loss=[self.margin_loss, 'mse'],
-                                 loss_weights=[1., args.lam_recon],
-                                 metrics={'capsnet': 'accuracy'})
+                                     loss=[self.margin_loss, 'mse'],
+                                     loss_weights=[1., args.lam_recon],
+                                     metrics={'capsnet': 'accuracy'})
 
         # Training without data augmentation:
         # print('shape validation : ', np.array([[self.x_test, self.y_test], [self.y_test, self.x_test]]).shape)
@@ -234,7 +260,7 @@ class GraphClassifier(object):
                                  # validation_data=[self.x_test, self.y_test], #[self.y_test, self.x_test]],
                                  # callbacks=[log, tb, checkpoint, lr_decay,TQDMCallback()],
                                  callbacks=[log, tb, checkpoint, lr_decay],
-                                 verbose=args.verbose)
+                                 verbose=0)
             # print('Evaluation: ',self.train_model.predict([[self.x_test, self.y_test], [self.y_test, self.x_test]]))
         else:
             # Begin: Training with data augmentation ---------------------------------------------------------------------#
@@ -246,7 +272,7 @@ class GraphClassifier(object):
                 validation_data=[[self.x_test, self.y_test], [self.y_test, self.x_test]],
                 callbacks=[log, tb, checkpoint, lr_decay])
             # End: Training with data augmentation -----------------------------------------------------------------------#
-            self.train_model.save_weights(args.save_dir + '/trained_model.h5')
+            #self.train_model.save_weights(args.save_dir + '/trained_model.h5')
         print('Trained model saved to \'%s/trained_model.h5\'' % args.save_dir)
 
 
@@ -284,8 +310,11 @@ if __name__ == "__main__":
     parser.add_argument('-n', help='name_of the dataset', default='MUTAG')
     #parser.add_argument('-w', help='width for patchy', default=18)
     parser.add_argument('-k', help='receptive field for patchy', default=10)
-    parser.add_argument('-e', help='number of epochs', default=200)
+    parser.add_argument('-st', help='stride', default=1)
+    parser.add_argument('-e', help='number of epochs', default=400)
+    #parser.add_argument('-c', help='number of classes', default=2)
     parser.add_argument('-f', help='number of different folds', default=10)
+    parser.add_argument('-lp', help='labelling procedure', default='bc')
     parser.add_argument('-s', dest='save', help='saving by default', action='store_true')
     parser.add_argument('-r', dest='relabelling', help='reshuffling takes place', action='store_true')
     parser.add_argument('-nr', dest='relabelling', help='no reshuffling takes place', action='store_false')
@@ -301,31 +330,36 @@ if __name__ == "__main__":
     dataset_name = args.n
     #width = int(args.w)
     receptive_field = int(args.k)
+    stride = int(args.st)
     relabelling = args.relabelling
     epochs = int(args.e)
     n_folds = int(args.f)
     save = args.save
+    labelling = args.lp
 
-    # print('relabelling:')
-    # print('')
-    # print(relabeling)
+    if labelling == 'bc':
+        RESULTS_PATH = os.path.join(DIR_PATH, 'Results/CapsuleSans/CNN_Caps_comparison_bc.csv')
+
+    print('Results saved to {}'.format(RESULTS_PATH))
+
 
     # dataset_name = 'MUTAG'
     # width = 18
     # receptive_field = 10
 
     # Converting Graphs into Matrices:
-    PatchyConverter = GraphConverter(dataset_name, receptive_field)
+    graph_converter = PatchyConverter(dataset_name, receptive_field,stride)
     if relabelling:
-        PatchyConverter.relabel_graphs()
+        graph_converter.relabel_graphs()
 
-    graph_tensor = PatchyConverter.graphs_to_Patchy_tensor()
-    avg_nodes_per_graph = PatchyConverter.avg_nodes_per_graph
+    graph_tensor = graph_converter.graphs_to_patchy_tensor(labelling)
+    avg_nodes_per_graph = graph_converter.avg_nodes_per_graph
 
     # Getting the labels:
     dropbox_loader = DropboxLoader(dataset_name)
     graph_labels = dropbox_loader.get_graph_label()
     graph_labels = np.array(graph_labels.graph_label)
+    n_class = len(np.unique(graph_labels))
 
     # Capsule Architecture Parameters:
     capsule_params = CapsuleParameters()
@@ -375,6 +409,7 @@ if __name__ == "__main__":
     # Training Hyperparameters:
 
     args_train = CapsuleTrainingParameters()
+    args_train.batch_size = 50
     if not os.path.exists(args_train.save_dir):
         os.makedirs(args_train.save_dir)
 
@@ -422,8 +457,12 @@ if __name__ == "__main__":
             input_shape = x_train.shape[1:]
             parameter_set.add_fold(i)
 
-            patchy_classifier = GraphClassifier(input_shape)
+            patchy_classifier = GraphClassifier(input_shape,n_class)
             patchy_classifier.build_the_graph(capsule_params)
+            ##
+            #patchy_classifier.train_model.summary()
+
+            ##
             patchy_classifier.train(data, parameter_set)
 
             training_time.append(patchy_classifier.training_time)
@@ -432,7 +471,7 @@ if __name__ == "__main__":
             #if i == 0:
             results_df.append(pd.DataFrame(patchy_classifier.results))
             #else:
-            print('Set of parameters {} trained '.format(i + 1))
+            print('Fold number {} trained '.format(j + 1))
 
 
 

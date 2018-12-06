@@ -12,6 +12,20 @@ import tensorflow as tf
 from keras import initializers, layers
 
 
+
+def squash(vectors, axis=-1):
+    """
+    The non-linear activation used in Capsule. It drives the length of a large vector to near 1 and small vector to 0
+    :param vectors: some vectors to be squashed, N-dim tensor
+    :param axis: the axis to squash
+    :return: a Tensor with same shape as input vectors
+    """
+    s_squared_norm = K.sum(K.square(vectors), axis, keepdims=True)
+    scale = s_squared_norm / (1 + s_squared_norm) / K.sqrt(s_squared_norm + K.epsilon())
+    return scale * vectors
+
+
+
 class Length(layers.Layer):
     """
     Compute the length of vectors. This is used to compute a Tensor that has the same shape with y_true in margin_loss.
@@ -72,16 +86,7 @@ class Mask(layers.Layer):
         return config
 
 
-def squash(vectors, axis=-1):
-    """
-    The non-linear activation used in Capsule. It drives the length of a large vector to near 1 and small vector to 0
-    :param vectors: some vectors to be squashed, N-dim tensor
-    :param axis: the axis to squash
-    :return: a Tensor with same shape as input vectors
-    """
-    s_squared_norm = K.sum(K.square(vectors), axis, keepdims=True)
-    scale = s_squared_norm / (1 + s_squared_norm) / K.sqrt(s_squared_norm + K.epsilon())
-    return scale * vectors
+
 
 
 class CapsuleLayer(layers.Layer):
@@ -143,6 +148,14 @@ class CapsuleLayer(layers.Layer):
         for i in range(self.routings):
             # c.shape=[batch_size, num_capsule, input_num_capsule]
             c = tf.nn.softmax(b, dim=1)
+
+            # c_old = tf.nn.
+            # if i ==0:
+            #     c = tf.nn.softmax(b, dim=1)
+            # else:
+            #     c_new = tf.nn.softmax(b, dim=1)
+            #     c = 0.1*c + 0.9*c_new
+
 
             # c.shape =  [batch_size, num_capsule, input_num_capsule]
             # inputs_hat.shape=[None, num_capsule, input_num_capsule, dim_capsule]

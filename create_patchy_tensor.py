@@ -31,7 +31,7 @@ from utils import plot_log, save_results_to_csv
 from capsulelayers import CapsuleLayer, PrimaryCap, Length, Mask
 
 sys.path.append('./PatchyTools/')
-from GraphConverter import GraphConverter
+from PatchyConverter import PatchyConverter
 from DropboxLoader import DropboxLoader
 from CapsuleParameters import CapsuleParameters
 from CapsuleParameters import CapsuleTrainingParameters
@@ -310,11 +310,12 @@ if __name__ == "__main__":
     # receptive_field = 10
 
     # Converting Graphs into Matrices:
-    PatchyConverter = GraphConverter(dataset_name, receptive_field)
+    graph_converter = PatchyConverter(dataset_name, receptive_field)
+    
     print('Graph imported')
     if relabelling:
         print('Relabelling:')
-        PatchyConverter.relabel_graphs()
+        graph_converter.relabel_graphs()
 
-    graph_tensor = PatchyConverter.graphs_to_Patchy_tensor()
-    avg_nodes_per_graph = PatchyConverter.avg_nodes_per_graph
+    graph_tensor = graph_converter.graphs_to_Patchy_tensor()
+    avg_nodes_per_graph = graph_converter.avg_nodes_per_graph

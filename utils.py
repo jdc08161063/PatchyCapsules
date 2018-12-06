@@ -62,6 +62,13 @@ def save_results_to_csv(file_to_append, file_name):
         file_to_append.to_csv(file_name)
 
 
+def indices_to_one_hot(number, nb_classes, label_dummy=-1):
+    """Convert an iterable of indices to one-hot encoded labels."""
+
+    if number == label_dummy:
+        return np.zeros(nb_classes)
+    else:
+        return np.eye(nb_classes)[number]
 
 
 
@@ -84,6 +91,7 @@ def combine_images(generated_images, height=None, width=None):
         image[i*shape[0]:(i+1)*shape[0], j*shape[1]:(j+1)*shape[1]] = \
             img[:, :, 0]
     return image
+
 
 if __name__=="__main__":
     plot_log('result/log.csv')

@@ -25,7 +25,7 @@ class CapsuleParameters(object):
 class CapsuleTrainingParameters(object):
     def __init__(self,
                  epochs=100,
-                 batch_size=100,
+                 batch_size=50,
                  lr=0.001,
                  lr_decay=0.9,
                  lam_recon=0.392,
@@ -59,6 +59,7 @@ class CapsuleTrainingParameters(object):
         self.plot_log = plot_log
         self.log_filename = log_filename
         self.verbose = verbose
+        self.fold = 1
 
     def generate_params_df(self):
         dict_params = {}
