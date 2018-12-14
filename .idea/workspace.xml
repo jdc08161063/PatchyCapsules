@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="fb3ca8c9-4dab-4682-b71b-b1cd39400266" name="Default" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-    </list>
+    <list default="true" id="fb3ca8c9-4dab-4682-b71b-b1cd39400266" name="Default" comment="" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -40,7 +38,7 @@
             <entry file="file://$PROJECT_DIR$/PatchyTools/utils.py">
               <provider selected="true" editor-type-id="text-editor">
                 <state>
-                  <caret line="33" column="22" lean-forward="true" selection-start-line="33" selection-start-column="22" selection-end-line="33" selection-end-column="22" />
+                  <caret line="33" column="22" selection-start-line="33" selection-start-column="22" selection-end-line="33" selection-end-column="22" />
                   <folding>
                     <element signature="e#0#48#0" expanded="true" />
                   </folding>
@@ -215,6 +213,7 @@
   </component>
   <component name="ToolWindowManager">
     <frame x="1360" y="23" width="80" height="22" extended-state="0" />
+    <editor active="true" />
     <layout>
       <window_info anchor="bottom" id="TODO" order="6" />
       <window_info anchor="bottom" id="Event Log" order="7" side_tool="true" />
@@ -454,7 +453,7 @@
     <entry file="file://$PROJECT_DIR$/PatchyTools/utils.py">
       <provider selected="true" editor-type-id="text-editor">
         <state>
-          <caret line="33" column="22" lean-forward="true" selection-start-line="33" selection-start-column="22" selection-end-line="33" selection-end-column="22" />
+          <caret line="33" column="22" selection-start-line="33" selection-start-column="22" selection-end-line="33" selection-end-column="22" />
           <folding>
             <element signature="e#0#48#0" expanded="true" />
           </folding>
